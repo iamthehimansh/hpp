@@ -1,0 +1,5 @@
+def int bit[32];
+def long bit[64];
+
+fn exit(code: int);
+fn abort();

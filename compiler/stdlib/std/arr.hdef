@@ -1,0 +1,44 @@
+def int  bit[32];
+def long bit[64];
+
+// ============================================================
+// Byte arrays (1 byte per element)
+// ============================================================
+
+fn byte_new(count: int) -> long;
+fn byte_free(arr: long, count: int);
+fn byte_get(arr: long, i: int) -> int;
+fn byte_set(arr: long, i: int, val: int);
+fn byte_fill(arr: long, count: int, val: int);
+fn byte_copy(dst: long, src: long, count: int);
+
+// ============================================================
+// Int arrays (4 bytes per element)
+// ============================================================
+
+fn int_new(count: int) -> long;
+fn int_free(arr: long, count: int);
+fn int_get(arr: long, i: int) -> int;
+fn int_set(arr: long, i: int, val: int);
+fn int_fill(arr: long, count: int, val: int);
+fn int_copy(dst: long, src: long, count: int);
+fn int_swap(arr: long, i: int, j: int);
+fn int_find(arr: long, count: int, val: int) -> int;
+fn int_sum(arr: long, count: int) -> int;
+fn int_min(arr: long, count: int) -> int;
+fn int_max(arr: long, count: int) -> int;
+fn int_reverse(arr: long, count: int);
+fn int_sort(arr: long, count: int);
+fn int_print(arr: long, count: int);
+
+// ============================================================
+// Long arrays (8 bytes per element)
+// ============================================================
+
+fn long_new(count: int) -> long;
+fn long_free(arr: long, count: int);
+fn long_get(arr: long, i: int) -> long;
+fn long_set(arr: long, i: int, val: long);
+fn long_fill(arr: long, count: int, val: long);
+fn long_copy(dst: long, src: long, count: int);
+fn long_swap(arr: long, i: int, j: int);

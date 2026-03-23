@@ -1,0 +1,13 @@
+def int bit[32];
+def long bit[64];
+
+fn sys_socket(domain: int, type: int, protocol: int) -> int;
+fn sys_bind(sockfd: int, addr: long, addrlen: int) -> int;
+fn sys_listen(sockfd: int, backlog: int) -> int;
+fn sys_accept(sockfd: int, addr: long, addrlen: long) -> int;
+fn sys_connect(sockfd: int, addr: long, addrlen: int) -> int;
+fn sys_sendto(sockfd: int, buf: long, len: long, flags: int, dest_addr: long, addrlen: int) -> long;
+fn sys_recvfrom(sockfd: int, buf: long, len: long, flags: int, src_addr: long, addrlen: long) -> long;
+fn sys_shutdown(sockfd: int, how: int) -> int;
+fn sys_setsockopt(sockfd: int, level: int, optname: int, optval: long, optlen: int) -> int;
+fn sys_getsockopt(sockfd: int, level: int, optname: int, optval: long, optlen: long) -> int;

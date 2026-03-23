@@ -1,0 +1,92 @@
+def int bit[32];
+def long bit[64];
+
+// --- File I/O ---
+fn sys_read(fd: int, buf: long, count: long) -> long;
+fn sys_write(fd: int, buf: long, count: long) -> long;
+fn sys_open(pathname: long, flags: int, mode: int) -> int;
+fn sys_close(fd: int) -> int;
+fn sys_stat(pathname: long, statbuf: long) -> int;
+fn sys_fstat(fd: int, statbuf: long) -> int;
+fn sys_lstat(pathname: long, statbuf: long) -> int;
+fn sys_lseek(fd: int, offset: long, whence: int) -> long;
+fn sys_pread64(fd: int, buf: long, count: long, offset: long) -> long;
+fn sys_pwrite64(fd: int, buf: long, count: long, offset: long) -> long;
+fn sys_access(pathname: long, mode: int) -> int;
+fn sys_pipe(pipefd: long) -> int;
+fn sys_dup(oldfd: int) -> int;
+fn sys_dup2(oldfd: int, newfd: int) -> int;
+fn sys_fcntl(fd: int, cmd: int, arg: long) -> int;
+fn sys_fsync(fd: int) -> int;
+fn sys_truncate(pathname: long, length: long) -> int;
+fn sys_ftruncate(fd: int, length: long) -> int;
+fn sys_rename(oldpath: long, newpath: long) -> int;
+fn sys_unlink(pathname: long) -> int;
+fn sys_readlink(pathname: long, buf: long, bufsiz: long) -> long;
+fn sys_chmod(pathname: long, mode: int) -> int;
+fn sys_fchmod(fd: int, mode: int) -> int;
+fn sys_chown(pathname: long, owner: int, group: int) -> int;
+
+// --- Memory ---
+fn sys_mmap(addr: long, len: long, prot: int, flags: int, fd: int, offset: long) -> long;
+fn sys_mprotect(addr: long, len: long, prot: int) -> int;
+fn sys_munmap(addr: long, len: long) -> int;
+fn sys_brk(addr: long) -> long;
+fn sys_mremap(old_addr: long, old_size: long, new_size: long, flags: int, new_addr: long) -> long;
+
+// --- Process ---
+fn sys_getpid() -> int;
+fn sys_fork() -> int;
+fn sys_execve(filename: long, argv: long, envp: long) -> int;
+fn sys_exit(status: int);
+fn sys_wait4(pid: int, wstatus: long, options: int, rusage: long) -> int;
+fn sys_kill(pid: int, sig: int) -> int;
+fn sys_getuid() -> int;
+fn sys_getgid() -> int;
+fn sys_setuid(uid: int) -> int;
+fn sys_setgid(gid: int) -> int;
+fn sys_geteuid() -> int;
+fn sys_getegid() -> int;
+fn sys_getppid() -> int;
+fn sys_setsid() -> int;
+fn sys_exit_group(status: int);
+
+// --- Directory ---
+fn sys_getcwd(buf: long, size: long) -> long;
+fn sys_chdir(path: long) -> int;
+fn sys_mkdir(pathname: long, mode: int) -> int;
+fn sys_rmdir(pathname: long) -> int;
+fn sys_getdents64(fd: int, dirp: long, count: long) -> int;
+
+// --- Network ---
+fn sys_socket(domain: int, type: int, protocol: int) -> int;
+fn sys_bind(sockfd: int, addr: long, addrlen: int) -> int;
+fn sys_listen(sockfd: int, backlog: int) -> int;
+fn sys_accept(sockfd: int, addr: long, addrlen: long) -> int;
+fn sys_connect(sockfd: int, addr: long, addrlen: int) -> int;
+fn sys_sendto(sockfd: int, buf: long, len: long, flags: int, dest_addr: long, addrlen: int) -> long;
+fn sys_recvfrom(sockfd: int, buf: long, len: long, flags: int, src_addr: long, addrlen: long) -> long;
+fn sys_shutdown(sockfd: int, how: int) -> int;
+fn sys_setsockopt(sockfd: int, level: int, optname: int, optval: long, optlen: int) -> int;
+fn sys_getsockopt(sockfd: int, level: int, optname: int, optval: long, optlen: long) -> int;
+
+// --- Time ---
+fn sys_nanosleep(req: long, rem: long) -> int;
+fn sys_gettimeofday(tv: long, tz: long) -> int;
+fn sys_time(tloc: long) -> long;
+fn sys_clock_gettime(clk_id: int, tp: long) -> int;
+
+// --- Signal ---
+fn sys_rt_sigaction(signum: int, act: long, oldact: long, sigsetsize: long) -> int;
+fn sys_rt_sigprocmask(how: int, set: long, oldset: long, sigsetsize: long) -> int;
+fn sys_pause() -> int;
+fn sys_alarm(seconds: int) -> int;
+
+// --- Misc ---
+fn sys_poll(fds: long, nfds: int, timeout: int) -> int;
+fn sys_ioctl(fd: int, request: long, arg: long) -> int;
+fn sys_select(nfds: int, readfds: long, writefds: long, exceptfds: long, timeout: long) -> int;
+fn sys_uname(buf: long) -> int;
+fn sys_getrusage(who: int, usage: long) -> int;
+fn sys_sysinfo(info: long) -> int;
+fn sys_getrandom(buf: long, buflen: long, flags: int) -> long;

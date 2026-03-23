@@ -1,0 +1,6 @@
+def int bit[32];
+def long bit[64];
+
+fn sleep_ms(ms: int);
+fn sleep_sec(sec: int);
+fn get_time_sec() -> long;

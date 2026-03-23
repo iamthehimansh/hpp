@@ -1,0 +1,10 @@
+def int bit[32];
+def long bit[64];
+
+fn mem_copy(dst: long, src: long, n: long);
+fn mem_set(dst: long, val: int, n: long);
+fn mem_cmp(a: long, b: long, n: long) -> int;
+fn mem_zero(dst: long, n: long);
+fn alloc(size: long) -> long;
+fn free(addr: long, size: long) -> int;
+fn realloc(old: long, old_size: long, new_size: long) -> long;

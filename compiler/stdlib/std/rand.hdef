@@ -1,0 +1,5 @@
+def int bit[32];
+def long bit[64];
+
+fn random_bytes(buf: long, count: long) -> long;
+fn random_int() -> int;

@@ -1,0 +1,8 @@
+def int bit[32];
+def long bit[64];
+
+fn str_len(s: long) -> long;
+fn str_eq(a: long, b: long) -> int;
+fn str_copy(dst: long, src: long) -> long;
+fn str_cat(dst: long, src: long) -> long;
+fn str_chr(s: long, c: int) -> long;

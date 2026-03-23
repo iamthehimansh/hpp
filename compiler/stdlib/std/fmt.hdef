@@ -1,0 +1,9 @@
+def int bit[32];
+def long bit[64];
+
+fn print_int(n: int);
+fn print_long(n: long);
+fn print_signed(n: int);
+fn print_hex(n: long);
+fn itoa(n: int, buf: long) -> long;
+fn atoi(s: long) -> int;

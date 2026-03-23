@@ -1,0 +1,19 @@
+def int bit[32];
+def long bit[64];
+
+fn print_char(c: int);
+fn print_newline();
+fn print_str(buf: long, len: long);
+fn puts(s: long);
+fn println(s: long);
+fn eprint_str(buf: long, len: long);
+fn eputs(s: long);
+fn read_char() -> int;
+fn read_stdin(buf: long, max_len: long) -> long;
+fn file_open_read(path: long) -> int;
+fn file_open_write(path: long) -> int;
+fn file_open_append(path: long) -> int;
+fn file_read(fd: int, buf: long, count: long) -> long;
+fn file_write(fd: int, buf: long, count: long) -> long;
+fn file_close(fd: int) -> int;
+fn file_size(fd: int) -> long;
