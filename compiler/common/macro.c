@@ -217,6 +217,135 @@ static Token *expand_macros(MacroProcessor *mp, Token *tokens, int count,
     return out;
 }
 
+/* ---- Pass: Rewrite bracket syntax ---- */
+/* arr[i]       → int_get(arr, i)          */
+/* arr[i] = val → int_set(arr, i, val)     */
+
+static Token make_synth_token(SourceLoc loc, TokenKind kind, const char *text, size_t len) {
+    Token t;
+    memset(&t, 0, sizeof(t));
+    t.kind = kind;
+    t.loc = loc;
+    t.text = text;
+    t.text_len = len;
+    return t;
+}
+
+/* Collect tokens between [ and matching ], handling nesting.
+   Returns position after the ]. */
+static int collect_bracket_expr(Token *tokens, int count, int start,
+                                 Token *out_tokens, int *out_len) {
+    int pos = start; /* should point to '[' */
+    if (pos >= count || tokens[pos].kind != TOK_LBRACKET) {
+        *out_len = 0;
+        return pos;
+    }
+    pos++; /* skip '[' */
+    int depth = 1;
+    *out_len = 0;
+    while (pos < count && depth > 0) {
+        if (tokens[pos].kind == TOK_LBRACKET) depth++;
+        else if (tokens[pos].kind == TOK_RBRACKET) {
+            depth--;
+            if (depth == 0) { pos++; break; }
+        }
+        if (*out_len < 256) {
+            out_tokens[(*out_len)++] = tokens[pos];
+        }
+        pos++;
+    }
+    return pos;
+}
+
+/* Check if this IDENT[ pattern is an array access (not a type like bit[32]) */
+static bool is_array_access(Token *tokens, int count, int pos) {
+    if (pos >= count) return false;
+    if (tokens[pos].kind != TOK_IDENT) return false;
+    if (pos + 1 >= count) return false;
+    if (tokens[pos + 1].kind != TOK_LBRACKET) return false;
+    /* Check context: skip if preceded by 'def' (type definition) */
+    if (pos > 0 && tokens[pos - 1].kind == TOK_DEF) return false;
+    /* Skip if preceded by ':' (parameter type annotation) */
+    if (pos > 0 && tokens[pos - 1].kind == TOK_COLON) return false;
+    /* Skip if preceded by '->' (return type) */
+    if (pos > 0 && tokens[pos - 1].kind == TOK_ARROW) return false;
+    return true;
+}
+
+static Token *rewrite_brackets(MacroProcessor *mp, Token *tokens, int count,
+                                int *out_count) {
+    int cap = count * 4 + 256;
+    Token *out = arena_alloc(mp->arena, (size_t)cap * sizeof(Token));
+    int out_pos = 0;
+
+    /* Intern the function names we'll need */
+    const char *int_get_str = "int_get";
+    const char *int_set_str = "int_set";
+
+    for (int i = 0; i < count; ) {
+        if (is_array_access(tokens, count, i)) {
+            SourceLoc loc = tokens[i].loc;
+            Token name_tok = tokens[i];
+            i++; /* skip IDENT */
+
+            /* Collect index expression between [ ] */
+            Token idx_tokens[256];
+            int idx_len = 0;
+            i = collect_bracket_expr(tokens, count, i, idx_tokens, &idx_len);
+
+            /* Check if followed by '=' (assignment) */
+            if (i < count && tokens[i].kind == TOK_ASSIGN) {
+                i++; /* skip '=' */
+
+                /* Collect value expression until ; or ) or , or } */
+                Token val_tokens[256];
+                int val_len = 0;
+                int depth = 0;
+                while (i < count && val_len < 256) {
+                    TokenKind k = tokens[i].kind;
+                    if (k == TOK_LPAREN) depth++;
+                    else if (k == TOK_RPAREN) {
+                        if (depth == 0) break;
+                        depth--;
+                    }
+                    else if (depth == 0 &&
+                             (k == TOK_SEMICOLON || k == TOK_COMMA ||
+                              k == TOK_RBRACE)) {
+                        break;
+                    }
+                    val_tokens[val_len++] = tokens[i++];
+                }
+
+                /* Emit: int_set ( name , idx , val ) */
+                out[out_pos++] = make_synth_token(loc, TOK_IDENT, int_set_str, 7);
+                out[out_pos++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                out[out_pos++] = name_tok;
+                out[out_pos++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                for (int j = 0; j < idx_len && out_pos < cap - 16; j++)
+                    out[out_pos++] = idx_tokens[j];
+                out[out_pos++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                for (int j = 0; j < val_len && out_pos < cap - 8; j++)
+                    out[out_pos++] = val_tokens[j];
+                out[out_pos++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+            } else {
+                /* Emit: int_get ( name , idx ) */
+                out[out_pos++] = make_synth_token(loc, TOK_IDENT, int_get_str, 7);
+                out[out_pos++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                out[out_pos++] = name_tok;
+                out[out_pos++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                for (int j = 0; j < idx_len && out_pos < cap - 8; j++)
+                    out[out_pos++] = idx_tokens[j];
+                out[out_pos++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+            }
+        } else {
+            out[out_pos++] = tokens[i++];
+        }
+    }
+
+    *out_count = out_pos;
+    return out;
+}
+
 /* ---- Public API ---- */
 
 Token *macro_process(MacroProcessor *mp, Token *tokens, int count, int *out_count) {
@@ -224,15 +353,21 @@ Token *macro_process(MacroProcessor *mp, Token *tokens, int count, int *out_coun
     int stripped_count = 0;
     Token *stripped = extract_macros(mp, tokens, count, &stripped_count);
 
-    if (mp->macro_count == 0) {
-        /* No macros — return stripped tokens as-is */
-        *out_count = stripped_count;
-        return stripped;
+    /* Pass 2: rewrite bracket syntax: arr[i] → int_get(arr, i)
+       Run multiple passes for nested brackets like a[i] = a[j] * 2 */
+    Token *rewritten = stripped;
+    int rewritten_count = stripped_count;
+    for (int pass = 0; pass < 8; pass++) {
+        int new_count = 0;
+        Token *rw = rewrite_brackets(mp, rewritten, rewritten_count, &new_count);
+        if (new_count == rewritten_count) { rewritten = rw; rewritten_count = new_count; break; }
+        rewritten = rw;
+        rewritten_count = new_count;
     }
 
-    /* Pass 2: expand macros (run up to 8 times for nested macros) */
-    Token *current = stripped;
-    int current_count = stripped_count;
+    /* Pass 3: expand macros (run up to 8 times for nested macros) */
+    Token *current = rewritten;
+    int current_count = rewritten_count;
     for (int pass = 0; pass < 8; pass++) {
         int new_count = 0;
         Token *expanded = expand_macros(mp, current, current_count, &new_count);
