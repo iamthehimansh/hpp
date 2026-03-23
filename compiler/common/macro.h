@@ -8,6 +8,7 @@
 #define MAX_MACROS 256
 #define MAX_MACRO_PARAMS 16
 #define MAX_MACRO_BODY 1024
+#define MAX_ARRAY_VARS 256
 
 typedef struct {
     const char *name;                       /* interned macro name */
@@ -17,10 +18,18 @@ typedef struct {
     int body_count;
 } MacroDef;
 
+/* Tracks which variables are arrays and their element type */
+typedef struct {
+    const char *var_name;   /* variable name */
+    const char *type_name;  /* element type: "int", "byte", "long" */
+} ArrayVarEntry;
+
 typedef struct {
     Arena *arena;
     MacroDef macros[MAX_MACROS];
     int macro_count;
+    ArrayVarEntry array_vars[MAX_ARRAY_VARS];
+    int array_var_count;
 } MacroProcessor;
 
 /* Create the macro processor */

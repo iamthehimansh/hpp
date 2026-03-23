@@ -7,7 +7,26 @@ MacroProcessor *macro_create(Arena *arena) {
     MacroProcessor *mp = arena_alloc(arena, sizeof(MacroProcessor));
     mp->arena = arena;
     mp->macro_count = 0;
+    mp->array_var_count = 0;
     return mp;
+}
+
+/* Register an array variable with its element type */
+static void register_array_var(MacroProcessor *mp, const char *var_name, const char *type_name) {
+    if (mp->array_var_count >= MAX_ARRAY_VARS) return;
+    mp->array_vars[mp->array_var_count].var_name = var_name;
+    mp->array_vars[mp->array_var_count].type_name = type_name;
+    mp->array_var_count++;
+}
+
+/* Look up element type for an array variable. Returns "int" as default. */
+static const char *lookup_array_type(MacroProcessor *mp, const char *var_name) {
+    for (int i = mp->array_var_count - 1; i >= 0; i--) {
+        if (strcmp(mp->array_vars[i].var_name, var_name) == 0) {
+            return mp->array_vars[i].type_name;
+        }
+    }
+    return "int"; /* default */
 }
 
 /* Find a macro by name (pointer comparison, interned) */
@@ -341,6 +360,9 @@ static Token *rewrite_array_decls(MacroProcessor *mp, Token *tokens, int count,
         int known_size = init_count; /* from initializer count */
         bool use_init_size = (size_len == 0 && has_init);
 
+        /* Register this variable's array element type */
+        register_array_var(mp, var_name, type_name);
+
         /* Emit: long VAR = TYPE_new(SIZE); */
         out[op++] = make_synth_token(loc, TOK_IDENT, "long", 4);
         out[op++] = make_synth_token(loc, TOK_IDENT, var_name, var_len);
@@ -429,15 +451,18 @@ static Token *rewrite_brackets(MacroProcessor *mp, Token *tokens, int count,
     Token *out = arena_alloc(mp->arena, (size_t)cap * sizeof(Token));
     int out_pos = 0;
 
-    /* Intern the function names we'll need */
-    const char *int_get_str = "int_get";
-    const char *int_set_str = "int_set";
-
     for (int i = 0; i < count; ) {
         if (is_array_access(tokens, count, i)) {
             SourceLoc loc = tokens[i].loc;
             Token name_tok = tokens[i];
             i++; /* skip IDENT */
+
+            /* Look up element type for this array variable */
+            const char *etype = lookup_array_type(mp, name_tok.text);
+            const char *get_fn = build_func_name(mp->arena, etype, "_get");
+            const char *set_fn = build_func_name(mp->arena, etype, "_set");
+            size_t get_fn_len = strlen(get_fn);
+            size_t set_fn_len = strlen(set_fn);
 
             /* Collect index expression between [ ] */
             Token idx_tokens[256];
@@ -467,8 +492,8 @@ static Token *rewrite_brackets(MacroProcessor *mp, Token *tokens, int count,
                     val_tokens[val_len++] = tokens[i++];
                 }
 
-                /* Emit: int_set ( name , idx , val ) */
-                out[out_pos++] = make_synth_token(loc, TOK_IDENT, int_set_str, 7);
+                /* Emit: TYPE_set ( name , idx , val ) */
+                out[out_pos++] = make_synth_token(loc, TOK_IDENT, set_fn, set_fn_len);
                 out[out_pos++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
                 out[out_pos++] = name_tok;
                 out[out_pos++] = make_synth_token(loc, TOK_COMMA, ",", 1);
@@ -479,8 +504,8 @@ static Token *rewrite_brackets(MacroProcessor *mp, Token *tokens, int count,
                     out[out_pos++] = val_tokens[j];
                 out[out_pos++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
             } else {
-                /* Emit: int_get ( name , idx ) */
-                out[out_pos++] = make_synth_token(loc, TOK_IDENT, int_get_str, 7);
+                /* Emit: TYPE_get ( name , idx ) */
+                out[out_pos++] = make_synth_token(loc, TOK_IDENT, get_fn, get_fn_len);
                 out[out_pos++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
                 out[out_pos++] = name_tok;
                 out[out_pos++] = make_synth_token(loc, TOK_COMMA, ",", 1);
