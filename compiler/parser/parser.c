@@ -22,6 +22,7 @@ static AstNode *parse_return_stmt(Parser *p);
 static AstNode *parse_if_stmt(Parser *p);
 static AstNode *parse_while_stmt(Parser *p);
 static AstNode *parse_for_stmt(Parser *p);
+static AstNode *parse_switch_stmt(Parser *p);
 static AstNode *parse_asm_block(Parser *p);
 static AstNode *parse_expression(Parser *p);
 static AstNode *parse_assignment(Parser *p);
@@ -555,6 +556,7 @@ static AstNode *parse_statement(Parser *p)
         expect(p, TOK_SEMICOLON, "expected ';' after 'continue'");
         return ast_new(p->arena, NODE_CONTINUE_STMT, tok->loc);
     }
+    case TOK_SWITCH:   return parse_switch_stmt(p);
     case TOK_ASM:    return parse_asm_block(p);
     case TOK_LBRACE: return parse_block(p);
     case TOK_CONST:  return parse_var_decl(p, DECL_CONST);
@@ -741,6 +743,77 @@ static AstNode *parse_for_stmt(Parser *p)
     node->as.for_stmt.condition = cond;
     node->as.for_stmt.update = update;
     node->as.for_stmt.body = body;
+    return node;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Switch statement                                                   */
+/* ------------------------------------------------------------------ */
+static AstNode *parse_switch_stmt(Parser *p)
+{
+    Token *sw_tok = advance(p); /* consume 'switch' */
+    expect(p, TOK_LPAREN, "expected '(' after 'switch'");
+    AstNode *expr = parse_expression(p);
+    expect(p, TOK_RPAREN, "expected ')' after switch expression");
+    expect(p, TOK_LBRACE, "expected '{' after switch");
+
+    uint64_t case_values[256];
+    AstNode *case_bodies[256];
+    int case_count = 0;
+    AstNode *default_body = NULL;
+
+    while (!check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+        if (match(p, TOK_CASE)) {
+            Token *val_tok = expect(p, TOK_INT_LIT, "expected integer after 'case'");
+            expect(p, TOK_COLON, "expected ':' after case value");
+            /* Collect statements until next case/default/} */
+            AstNode *body = ast_new(p->arena, NODE_BLOCK, val_tok->loc);
+            body->as.block.stmts = NULL;
+            while (!check(p, TOK_CASE) && !check(p, TOK_DEFAULT) &&
+                   !check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+                AstNode *stmt = parse_statement(p);
+                if (stmt) {
+                    body->as.block.stmts =
+                        ast_list_append(p->arena, body->as.block.stmts, stmt);
+                }
+            }
+            if (case_count < 256) {
+                case_values[case_count] = val_tok->int_value;
+                case_bodies[case_count] = body;
+                case_count++;
+            }
+        } else if (match(p, TOK_DEFAULT)) {
+            expect(p, TOK_COLON, "expected ':' after 'default'");
+            AstNode *body = ast_new(p->arena, NODE_BLOCK, previous(p)->loc);
+            body->as.block.stmts = NULL;
+            while (!check(p, TOK_CASE) && !check(p, TOK_DEFAULT) &&
+                   !check(p, TOK_RBRACE) && !check(p, TOK_EOF)) {
+                AstNode *stmt = parse_statement(p);
+                if (stmt) {
+                    body->as.block.stmts =
+                        ast_list_append(p->arena, body->as.block.stmts, stmt);
+                }
+            }
+            default_body = body;
+        } else {
+            parser_error(p, current(p), "expected 'case' or 'default' in switch");
+            advance(p);
+        }
+    }
+    expect(p, TOK_RBRACE, "expected '}' after switch body");
+
+    AstNode *node = ast_new(p->arena, NODE_SWITCH_STMT, sw_tok->loc);
+    node->as.switch_stmt.expr = expr;
+    node->as.switch_stmt.case_count = case_count;
+    node->as.switch_stmt.case_values =
+        arena_alloc(p->arena, (size_t)case_count * sizeof(uint64_t));
+    node->as.switch_stmt.case_bodies =
+        arena_alloc(p->arena, (size_t)case_count * sizeof(AstNode *));
+    for (int i = 0; i < case_count; i++) {
+        node->as.switch_stmt.case_values[i] = case_values[i];
+        node->as.switch_stmt.case_bodies[i] = case_bodies[i];
+    }
+    node->as.switch_stmt.default_body = default_body;
     return node;
 }
 
@@ -1173,6 +1246,14 @@ static AstNode *parse_primary(Parser *p)
         node->as.string_lit.text = tok->text;
         node->as.string_lit.len = tok->text_len;
         node->as.string_lit.data_id = -1; /* assigned by codegen */
+        return node;
+    }
+
+    /* Null literal (maps to integer 0) */
+    if (match(p, TOK_NULL)) {
+        Token *tok = previous(p);
+        AstNode *node = ast_new(p->arena, NODE_INT_LIT, tok->loc);
+        node->as.int_lit.value = 0;
         return node;
     }
 

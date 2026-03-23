@@ -212,6 +212,19 @@ static const StdLLFunc std_ll_funcs[] = {
     /* ---- MISC ---- */
     {"exit",               1, {32,0,0,0,0,0},             0},
     {"abort",              0, {0,0,0,0,0,0},              0},
+    /* ---- STRING BUILDER ---- */
+    {"sb_new",             0, {0,0,0,0,0,0},              64},
+    {"sb_free",            1, {64,0,0,0,0,0},             0},
+    {"sb_len",             1, {64,0,0,0,0,0},             32},
+    {"sb_data",            1, {64,0,0,0,0,0},             64},
+    {"sb_append",          2, {64,64,0,0,0,0},            0},
+    {"sb_append_str",      3, {64,64,32,0,0,0},           0},
+    {"sb_append_char",     2, {64,32,0,0,0,0},            0},
+    {"sb_append_int",      2, {64,32,0,0,0,0},            0},
+    {"sb_append_long",     2, {64,64,0,0,0,0},            0},
+    {"sb_append_hex",      2, {64,64,0,0,0,0},            0},
+    {"sb_to_str",          1, {64,0,0,0,0,0},             64},
+    {"sb_clear",           1, {64,0,0,0,0,0},             0},
 };
 
 #define STD_LL_COUNT ((int)(sizeof(std_ll_funcs) / sizeof(std_ll_funcs[0])))
@@ -636,6 +649,19 @@ static void sema_stmt(Sema *sema, AstNode *node)
     case NODE_FOR_STMT:      sema_for_stmt(sema, node);    break;
     case NODE_BLOCK:         sema_block(sema, node);        break;
     case NODE_ASM_BLOCK:     /* nothing to check */         break;
+
+    case NODE_SWITCH_STMT: {
+        sema_expr(sema, node->as.switch_stmt.expr);
+        sema->loop_depth++;  /* allow break inside switch */
+        for (int i = 0; i < node->as.switch_stmt.case_count; i++) {
+            sema_block(sema, node->as.switch_stmt.case_bodies[i]);
+        }
+        if (node->as.switch_stmt.default_body) {
+            sema_block(sema, node->as.switch_stmt.default_body);
+        }
+        sema->loop_depth--;
+        break;
+    }
 
     case NODE_BREAK_STMT:
     case NODE_CONTINUE_STMT:
@@ -1096,6 +1122,15 @@ static HppType *sema_call(Sema *sema, AstNode *node)
         return NULL;
     }
     if (sym->kind != SYM_FUNC) {
+        /* Allow calling through function pointer (variable holding address) */
+        if (sym->kind == SYM_VAR || sym->kind == SYM_PARAM) {
+            /* Function pointer call — can't type-check args, just analyze them */
+            for (int i = 0; i < node->as.call.arg_count; i++) {
+                sema_expr(sema, node->as.call.args[i]);
+            }
+            /* Return type unknown — assume long (64-bit) */
+            return type_make_bitn(sema->arena, 64);
+        }
         sema_error(sema, node->loc,
                    "'%s' is not a function", name);
         return NULL;

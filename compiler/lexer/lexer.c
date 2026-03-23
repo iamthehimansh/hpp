@@ -35,11 +35,15 @@ static const Keyword keywords[] = {
     { "opp",      TOK_OPP      },
     { "true",     TOK_TRUE     },
     { "false",    TOK_FALSE    },
+    { "null",     TOK_NULL     },
     { "bit",      TOK_BIT      },
     { "import",   TOK_IMPORT   },
     { "link",     TOK_LINK     },
     { "macro",    TOK_MACRO    },
     { "defx",     TOK_DEFX     },
+    { "switch",   TOK_SWITCH   },
+    { "case",     TOK_CASE     },
+    { "default",  TOK_DEFAULT  },
     { "struct",   TOK_STRUCT   },
     { "enum",     TOK_ENUM     },
     { "match",    TOK_MATCH    },
@@ -413,29 +417,46 @@ static Token lexer_next_raw(Lexer *lex)
             if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_NOT_EQUAL, 2);
             return make_token(lex, TOK_BANG, 1);
         case '<':
-            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_LESS_EQ, 2);
+            if (peek_char_at(lex, 1) == '<' && peek_char_at(lex, 2) == '=') return make_token(lex, TOK_SHL_ASSIGN, 3);
             if (peek_char_at(lex, 1) == '<') return make_token(lex, TOK_SHL, 2);
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_LESS_EQ, 2);
             return make_token(lex, TOK_LESS, 1);
         case '>':
-            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_GREATER_EQ, 2);
+            if (peek_char_at(lex, 1) == '>' && peek_char_at(lex, 2) == '=') return make_token(lex, TOK_SHR_ASSIGN, 3);
             if (peek_char_at(lex, 1) == '>') return make_token(lex, TOK_SHR, 2);
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_GREATER_EQ, 2);
             return make_token(lex, TOK_GREATER, 1);
         case '&':
             if (peek_char_at(lex, 1) == '&') return make_token(lex, TOK_AND, 2);
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_AMP_ASSIGN, 2);
             return make_token(lex, TOK_AMP, 1);
         case '|':
             if (peek_char_at(lex, 1) == '|') return make_token(lex, TOK_OR, 2);
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_PIPE_ASSIGN, 2);
             return make_token(lex, TOK_PIPE, 1);
         case '-':
             if (peek_char_at(lex, 1) == '>') return make_token(lex, TOK_ARROW, 2);
+            if (peek_char_at(lex, 1) == '-') return make_token(lex, TOK_MINUS_MINUS, 2);
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_MINUS_ASSIGN, 2);
             return make_token(lex, TOK_MINUS, 1);
 
-        /* Single-char operators */
-        case '+': return make_token(lex, TOK_PLUS, 1);
-        case '*': return make_token(lex, TOK_STAR, 1);
-        case '/': return make_token(lex, TOK_SLASH, 1);
-        case '%': return make_token(lex, TOK_PERCENT, 1);
-        case '^': return make_token(lex, TOK_CARET, 1);
+        /* Multi/single-char operators */
+        case '+':
+            if (peek_char_at(lex, 1) == '+') return make_token(lex, TOK_PLUS_PLUS, 2);
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_PLUS_ASSIGN, 2);
+            return make_token(lex, TOK_PLUS, 1);
+        case '*':
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_STAR_ASSIGN, 2);
+            return make_token(lex, TOK_STAR, 1);
+        case '/':
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_SLASH_ASSIGN, 2);
+            return make_token(lex, TOK_SLASH, 1);
+        case '%':
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_PERCENT_ASSIGN, 2);
+            return make_token(lex, TOK_PERCENT, 1);
+        case '^':
+            if (peek_char_at(lex, 1) == '=') return make_token(lex, TOK_CARET_ASSIGN, 2);
+            return make_token(lex, TOK_CARET, 1);
         case '~': return make_token(lex, TOK_TILDE, 1);
 
         /* Punctuation */

@@ -710,6 +710,51 @@ Token *macro_process(MacroProcessor *mp, Token *tokens, int count, int *out_coun
         }
     }
 
+    /* Pass 0a2: rewrite sizeof(TYPE) → integer literal of byte size
+       Pattern: IDENT("sizeof") LPAREN IDENT(type) RPAREN */
+    {
+        int cap = count + 256;
+        Token *rw = arena_alloc(mp->arena, (size_t)cap * sizeof(Token));
+        int rp = 0;
+
+        for (int i = 0; i < count; ) {
+            if (i + 3 < count &&
+                tokens[i].kind == TOK_IDENT &&
+                tokens[i].text_len == 6 &&
+                memcmp(tokens[i].text, "sizeof", 6) == 0 &&
+                tokens[i+1].kind == TOK_LPAREN &&
+                (tokens[i+2].kind == TOK_IDENT || tokens[i+2].kind == TOK_BIT) &&
+                tokens[i+3].kind == TOK_RPAREN) {
+                SourceLoc loc = tokens[i].loc;
+                int bytes = type_byte_size(mp, tokens[i+2].text);
+                rw[rp++] = make_int_token(loc, (uint64_t)bytes, mp->arena);
+                i += 4;
+                continue;
+            }
+            /* sizeof(bit[N]) → N/8 rounded up */
+            if (i + 6 < count &&
+                tokens[i].kind == TOK_IDENT &&
+                tokens[i].text_len == 6 &&
+                memcmp(tokens[i].text, "sizeof", 6) == 0 &&
+                tokens[i+1].kind == TOK_LPAREN &&
+                tokens[i+2].kind == TOK_BIT &&
+                tokens[i+3].kind == TOK_LBRACKET &&
+                tokens[i+4].kind == TOK_INT_LIT &&
+                tokens[i+5].kind == TOK_RBRACKET &&
+                tokens[i+6].kind == TOK_RPAREN) {
+                SourceLoc loc = tokens[i].loc;
+                int bits = (int)tokens[i+4].int_value;
+                int bytes = (bits + 7) / 8;
+                rw[rp++] = make_int_token(loc, (uint64_t)bytes, mp->arena);
+                i += 7;
+                continue;
+            }
+            rw[rp++] = tokens[i++];
+        }
+        tokens = rw;
+        count = rp;
+    }
+
     /* Pass 0b: scan for string variable assignments to register as byte arrays
        Pattern: IDENT IDENT = STRING_LIT  (typed: long s = "hello")
        Pattern: LET IDENT = STRING_LIT    (let s = "hello")
@@ -724,6 +769,95 @@ Token *macro_process(MacroProcessor *mp, Token *tokens, int count, int *out_coun
             tokens[i+2].kind == TOK_ASSIGN && tokens[i+3].kind == TOK_STRING_LIT) {
             register_string_var(mp, tokens[i+1].text);
         }
+    }
+
+    /* Pass 0c: rewrite compound assignment and increment/decrement
+       x += y  → x = x + y
+       x++     → x = x + 1     (postfix)
+       ++x     → x = x + 1     (prefix)
+       Same for -=, *=, /=, %=, &=, |=, ^=, <<=, >>=, --, etc. */
+    {
+        int cap = count * 3 + 256;
+        Token *rw = arena_alloc(mp->arena, (size_t)cap * sizeof(Token));
+        int rp = 0;
+
+        for (int i = 0; i < count; ) {
+            /* Prefix ++x or --x */
+            if (i + 1 < count &&
+                (tokens[i].kind == TOK_PLUS_PLUS || tokens[i].kind == TOK_MINUS_MINUS) &&
+                tokens[i+1].kind == TOK_IDENT) {
+                SourceLoc loc = tokens[i].loc;
+                const char *op = tokens[i].kind == TOK_PLUS_PLUS ? "+" : "-";
+                Token name = tokens[i+1];
+                /* x = x + 1 */
+                rw[rp++] = name;
+                rw[rp++] = make_synth_token(loc, TOK_ASSIGN, "=", 1);
+                rw[rp++] = name;
+                rw[rp++] = make_synth_token(loc, tokens[i].kind == TOK_PLUS_PLUS ? TOK_PLUS : TOK_MINUS, op, 1);
+                rw[rp++] = make_int_token(loc, 1, mp->arena);
+                i += 2;
+                continue;
+            }
+            /* Postfix x++ or x-- */
+            if (i + 1 < count &&
+                tokens[i].kind == TOK_IDENT &&
+                (tokens[i+1].kind == TOK_PLUS_PLUS || tokens[i+1].kind == TOK_MINUS_MINUS)) {
+                SourceLoc loc = tokens[i].loc;
+                const char *op = tokens[i+1].kind == TOK_PLUS_PLUS ? "+" : "-";
+                Token name = tokens[i];
+                rw[rp++] = name;
+                rw[rp++] = make_synth_token(loc, TOK_ASSIGN, "=", 1);
+                rw[rp++] = name;
+                rw[rp++] = make_synth_token(loc, tokens[i+1].kind == TOK_PLUS_PLUS ? TOK_PLUS : TOK_MINUS, op, 1);
+                rw[rp++] = make_int_token(loc, 1, mp->arena);
+                i += 2;
+                continue;
+            }
+            /* Compound assignment: x += y → x = x + y */
+            if (i + 1 < count && tokens[i].kind == TOK_IDENT) {
+                TokenKind ck = tokens[i+1].kind;
+                TokenKind binop = 0;
+                const char *binop_str = NULL;
+                switch (ck) {
+                    case TOK_PLUS_ASSIGN:    binop = TOK_PLUS;    binop_str = "+"; break;
+                    case TOK_MINUS_ASSIGN:   binop = TOK_MINUS;   binop_str = "-"; break;
+                    case TOK_STAR_ASSIGN:    binop = TOK_STAR;    binop_str = "*"; break;
+                    case TOK_SLASH_ASSIGN:   binop = TOK_SLASH;   binop_str = "/"; break;
+                    case TOK_PERCENT_ASSIGN: binop = TOK_PERCENT; binop_str = "%"; break;
+                    case TOK_AMP_ASSIGN:     binop = TOK_AMP;     binop_str = "&"; break;
+                    case TOK_PIPE_ASSIGN:    binop = TOK_PIPE;    binop_str = "|"; break;
+                    case TOK_CARET_ASSIGN:   binop = TOK_CARET;   binop_str = "^"; break;
+                    case TOK_SHL_ASSIGN:     binop = TOK_SHL;     binop_str = "<<"; break;
+                    case TOK_SHR_ASSIGN:     binop = TOK_SHR;     binop_str = ">>"; break;
+                    default: break;
+                }
+                if (binop_str) {
+                    SourceLoc loc = tokens[i].loc;
+                    Token name = tokens[i];
+                    i += 2; /* skip name and compound op */
+                    /* Emit: name = name OP */
+                    rw[rp++] = name;
+                    rw[rp++] = make_synth_token(loc, TOK_ASSIGN, "=", 1);
+                    rw[rp++] = name;
+                    rw[rp++] = make_synth_token(loc, binop, binop_str, strlen(binop_str));
+                    /* Copy the RHS expression until ; or ) or , */
+                    rw[rp++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                    int depth = 0;
+                    while (i < count && rp < cap - 8) {
+                        TokenKind k = tokens[i].kind;
+                        if (k == TOK_LPAREN) depth++;
+                        else if (k == TOK_RPAREN) { if (depth == 0) break; depth--; }
+                        else if (depth == 0 && (k == TOK_SEMICOLON || k == TOK_COMMA || k == TOK_RBRACE)) break;
+                        rw[rp++] = tokens[i++];
+                    }
+                    rw[rp++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+                    continue;
+                }
+            }
+            rw[rp++] = tokens[i++];
+        }
+        tokens = rw;
+        count = rp;
     }
 
     /* Pass 1: extract macro and defx definitions */

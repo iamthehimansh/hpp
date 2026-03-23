@@ -1,0 +1,15 @@
+def int  bit[32];
+def long bit[64];
+
+fn sb_new() -> long;
+fn sb_free(sb: long);
+fn sb_len(sb: long) -> int;
+fn sb_data(sb: long) -> long;
+fn sb_append(sb: long, s: long);
+fn sb_append_str(sb: long, s: long, len: int);
+fn sb_append_char(sb: long, c: int);
+fn sb_append_int(sb: long, n: int);
+fn sb_append_long(sb: long, n: long);
+fn sb_append_hex(sb: long, n: long);
+fn sb_to_str(sb: long) -> long;
+fn sb_clear(sb: long);

@@ -193,6 +193,12 @@ static void prescan_vars(CodeGen *cg, AstNode *node) {
             prescan_vars(cg, node->as.for_stmt.init);
             prescan_vars(cg, node->as.for_stmt.body);
             break;
+        case NODE_SWITCH_STMT:
+            for (int i = 0; i < node->as.switch_stmt.case_count; i++) {
+                prescan_vars(cg, node->as.switch_stmt.case_bodies[i]);
+            }
+            prescan_vars(cg, node->as.switch_stmt.default_body);
+            break;
         default:
             break;
     }
@@ -434,6 +440,9 @@ static void gen_unary_expr(CodeGen *cg, AstNode *node) {
 static void gen_call_expr(CodeGen *cg, AstNode *node) {
     int argc = node->as.call.arg_count;
 
+    /* Check if this is an indirect call (function pointer in a variable) */
+    VarMapEntry *fptr = var_map_find(&g_var_map, node->as.call.func_name);
+
     /* Evaluate all arguments left to right, push each */
     for (int i = 0; i < argc; i++) {
         gen_expr(cg, node->as.call.args[i]);
@@ -445,7 +454,14 @@ static void gen_call_expr(CodeGen *cg, AstNode *node) {
         emit(cg, "    pop %s\n", arg_reg64(i));
     }
 
-    emit(cg, "    call %s\n", node->as.call.func_name);
+    if (fptr) {
+        /* Indirect call: load fn ptr into r11 (caller-saved scratch) and call */
+        emit(cg, "    mov r11, qword [rbp - %d]\n", fptr->offset);
+        emit(cg, "    call r11\n");
+    } else {
+        /* Direct call */
+        emit(cg, "    call %s\n", node->as.call.func_name);
+    }
     /* Result is in rax */
 }
 
@@ -473,8 +489,8 @@ static void gen_expr(CodeGen *cg, AstNode *node) {
             if (v) {
                 emit(cg, "    lea rax, [rbp - %d]\n", v->offset);
             } else {
-                error_report(node->loc, ERR_CODEGEN,
-                             "cannot take address of '%s'", node->as.addr_of.name);
+                /* Assume it's a function name — get its address */
+                emit(cg, "    lea rax, [rel %s]\n", node->as.addr_of.name);
             }
             break;
         }
@@ -646,6 +662,46 @@ static void gen_stmt(CodeGen *cg, AstNode *node) {
         case NODE_FOR_STMT:      gen_for_stmt(cg, node);      break;
         case NODE_BREAK_STMT:    gen_break_stmt(cg, node);    break;
         case NODE_CONTINUE_STMT: gen_continue_stmt(cg, node); break;
+        case NODE_SWITCH_STMT: {
+            gen_expr(cg, node->as.switch_stmt.expr);
+            int end_label = new_label(cg);
+            int *case_labels = arena_alloc(cg->arena,
+                (size_t)node->as.switch_stmt.case_count * sizeof(int));
+            int default_label = new_label(cg);
+
+            /* Push break context so break jumps to end_label */
+            LoopCtx sw_ctx;
+            sw_ctx.break_label = end_label;
+            sw_ctx.continue_label = -1;
+            sw_ctx.parent = cg->loop_ctx;
+            cg->loop_ctx = &sw_ctx;
+
+            for (int i = 0; i < node->as.switch_stmt.case_count; i++) {
+                case_labels[i] = new_label(cg);
+                emit(cg, "    cmp rax, %" PRIu64 "\n",
+                     node->as.switch_stmt.case_values[i]);
+                emit(cg, "    je .L%d\n", case_labels[i]);
+            }
+            if (node->as.switch_stmt.default_body) {
+                emit(cg, "    jmp .L%d\n", default_label);
+            } else {
+                emit(cg, "    jmp .L%d\n", end_label);
+            }
+
+            for (int i = 0; i < node->as.switch_stmt.case_count; i++) {
+                emit_label(cg, case_labels[i]);
+                gen_block(cg, node->as.switch_stmt.case_bodies[i]);
+            }
+
+            if (node->as.switch_stmt.default_body) {
+                emit_label(cg, default_label);
+                gen_block(cg, node->as.switch_stmt.default_body);
+            }
+
+            cg->loop_ctx = sw_ctx.parent;
+            emit_label(cg, end_label);
+            break;
+        }
         case NODE_ASM_BLOCK:     gen_asm_block(cg, node);     break;
         case NODE_EXPR_STMT:
             gen_expr(cg, node->as.expr_stmt.expr);
@@ -805,6 +861,13 @@ static void collect_externs(CodeGen *cg, AstNode *node) {
             collect_externs(cg, node->as.for_stmt.update);
             collect_externs(cg, node->as.for_stmt.body);
             break;
+        case NODE_SWITCH_STMT:
+            collect_externs(cg, node->as.switch_stmt.expr);
+            for (int i = 0; i < node->as.switch_stmt.case_count; i++) {
+                collect_externs(cg, node->as.switch_stmt.case_bodies[i]);
+            }
+            collect_externs(cg, node->as.switch_stmt.default_body);
+            break;
         case NODE_BINARY_EXPR:
             collect_externs(cg, node->as.binary.left);
             collect_externs(cg, node->as.binary.right);
@@ -878,6 +941,8 @@ static void gen_program(CodeGen *cg, AstNode *program) {
         /* Executable mode: emit _start entry point */
         emit(cg, "global _start\n\n");
         emit(cg, "_start:\n");
+        emit(cg, "    mov rdi, [rsp]\n");       /* argc */
+        emit(cg, "    lea rsi, [rsp + 8]\n");   /* argv pointer */
         emit(cg, "    call main\n");
         emit(cg, "    mov rdi, rax\n");
         emit(cg, "    mov rax, 60\n");

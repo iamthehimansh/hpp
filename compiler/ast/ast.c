@@ -57,6 +57,7 @@ const char *ast_node_kind_str(AstNodeKind kind)
     case NODE_WHILE_STMT:    return "WhileStmt";
     case NODE_FOR_STMT:      return "ForStmt";
     case NODE_BREAK_STMT:    return "BreakStmt";
+    case NODE_SWITCH_STMT:   return "SwitchStmt";
     case NODE_CONTINUE_STMT: return "ContinueStmt";
     case NODE_ASM_BLOCK:     return "AsmBlock";
     case NODE_INT_LIT:       return "IntLit";
@@ -268,6 +269,23 @@ void ast_print(AstNode *node, int indent)
 
     case NODE_CONTINUE_STMT:
         printf("ContinueStmt\n");
+        break;
+
+    case NODE_SWITCH_STMT:
+        printf("SwitchStmt\n");
+        print_indent(indent + 2);
+        printf("Expr:\n");
+        ast_print(node->as.switch_stmt.expr, indent + 4);
+        for (int i = 0; i < node->as.switch_stmt.case_count; i++) {
+            print_indent(indent + 2);
+            printf("Case %" PRIu64 ":\n", node->as.switch_stmt.case_values[i]);
+            ast_print(node->as.switch_stmt.case_bodies[i], indent + 4);
+        }
+        if (node->as.switch_stmt.default_body) {
+            print_indent(indent + 2);
+            printf("Default:\n");
+            ast_print(node->as.switch_stmt.default_body, indent + 4);
+        }
         break;
 
     case NODE_ASM_BLOCK:

@@ -18,7 +18,7 @@ typedef enum {
     // Statements
     NODE_BLOCK, NODE_VAR_DECL, NODE_EXPR_STMT, NODE_RETURN_STMT,
     NODE_IF_STMT, NODE_WHILE_STMT, NODE_FOR_STMT,
-    NODE_BREAK_STMT, NODE_CONTINUE_STMT, NODE_ASM_BLOCK,
+    NODE_BREAK_STMT, NODE_CONTINUE_STMT, NODE_SWITCH_STMT, NODE_ASM_BLOCK,
     // Expressions
     NODE_INT_LIT, NODE_BOOL_LIT, NODE_STRING_LIT, NODE_IDENT,
     NODE_BINARY_EXPR, NODE_UNARY_EXPR, NODE_CALL_EXPR,
@@ -91,6 +91,13 @@ struct AstNode {
         struct { AstNode *condition; AstNode *then_block; AstNode *else_block; } if_stmt;
         struct { AstNode *condition; AstNode *body; } while_stmt;
         struct { AstNode *init; AstNode *condition; AstNode *update; AstNode *body; } for_stmt;
+        struct {
+            AstNode *expr;                /* switch expression */
+            uint64_t *case_values;        /* case values array */
+            AstNode **case_bodies;        /* case body blocks */
+            int case_count;
+            AstNode *default_body;        /* default block (may be NULL) */
+        } switch_stmt;
         struct { AsmTarget target; const char *body; int body_len; } asm_block;
         struct { uint64_t value; } int_lit;
         struct { bool value; } bool_lit;
