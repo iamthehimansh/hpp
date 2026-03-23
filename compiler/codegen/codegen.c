@@ -478,6 +478,20 @@ static void gen_expr(CodeGen *cg, AstNode *node) {
             }
             break;
         }
+        case NODE_DEREF:
+            /* *ptr — read 64-bit value from address */
+            gen_expr(cg, node->as.deref.operand);  /* addr in rax */
+            emit(cg, "    mov rax, [rax]\n");       /* load value */
+            break;
+        case NODE_DEREF_ASSIGN:
+            /* *ptr = val — write 64-bit value to address */
+            gen_expr(cg, node->as.deref_assign.value);  /* val in rax */
+            emit(cg, "    push rax\n");
+            gen_expr(cg, node->as.deref_assign.addr);   /* addr in rax */
+            emit(cg, "    pop rcx\n");                   /* val in rcx */
+            emit(cg, "    mov [rax], rcx\n");            /* store */
+            emit(cg, "    mov rax, rcx\n");              /* return val */
+            break;
         default:
             error_report(node->loc, ERR_CODEGEN,
                          "unexpected node kind '%s' in expression",
@@ -816,6 +830,14 @@ static void collect_externs(CodeGen *cg, AstNode *node) {
         case NODE_LINK:
         case NODE_STRING_LIT:
         case NODE_ADDR_OF:
+            break;
+        case NODE_DEREF:
+            collect_externs(cg, node->as.deref.operand);
+            break;
+        case NODE_DEREF_ASSIGN:
+            collect_externs(cg, node->as.deref_assign.addr);
+            collect_externs(cg, node->as.deref_assign.value);
+            break;
         case NODE_TYPE_BIT:
         case NODE_TYPE_NAMED:
             break;

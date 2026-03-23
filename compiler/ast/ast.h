@@ -23,6 +23,8 @@ typedef enum {
     NODE_INT_LIT, NODE_BOOL_LIT, NODE_STRING_LIT, NODE_IDENT,
     NODE_BINARY_EXPR, NODE_UNARY_EXPR, NODE_CALL_EXPR,
     NODE_ASSIGN_EXPR, NODE_CAST_EXPR, NODE_ADDR_OF,
+    NODE_DEREF,          /* *ptr — read from address */
+    NODE_DEREF_ASSIGN,   /* *ptr = val — write to address */
     // Types
     NODE_TYPE_BIT, NODE_TYPE_NAMED,
 } AstNodeKind;
@@ -100,6 +102,8 @@ struct AstNode {
         struct { const char *name; AstNode *value; } assign;
         struct { AstNode *target_type; AstNode *expr; } cast;
         struct { const char *name; } addr_of;  /* &variable */
+        struct { AstNode *operand; } deref;    /* *ptr (read) */
+        struct { AstNode *addr; AstNode *value; } deref_assign; /* *ptr = val */
         struct { uint32_t width; } type_bit;   // 0 means plain 'bit' = bit[1]
         struct { const char *name; } type_named;
     } as;

@@ -839,6 +839,24 @@ static AstNode *parse_expression(Parser *p)
 
 static AstNode *parse_assignment(Parser *p)
 {
+    /* *expr = val — dereference write */
+    if (check(p, TOK_STAR)) {
+        /* Look ahead: * expr = val */
+        int save = p->pos;
+        advance(p); /* skip * */
+        AstNode *addr = parse_unary(p);
+        if (check(p, TOK_ASSIGN)) {
+            advance(p); /* skip = */
+            AstNode *value = parse_assignment(p);
+            AstNode *node = ast_new(p->arena, NODE_DEREF_ASSIGN, addr->loc);
+            node->as.deref_assign.addr = addr;
+            node->as.deref_assign.value = value;
+            return node;
+        }
+        /* Not an assignment — backtrack and let it parse as *expr (deref read) */
+        p->pos = save;
+    }
+    /* ident = val — regular assignment */
     if (check(p, TOK_IDENT) &&
         p->pos + 1 < p->token_count &&
         p->tokens[p->pos + 1].kind == TOK_ASSIGN) {
@@ -1054,6 +1072,14 @@ static AstNode *parse_unary(Parser *p)
         Token *name_tok = expect(p, TOK_IDENT, "expected variable name after '&'");
         AstNode *node = ast_new(p->arena, NODE_ADDR_OF, op_tok->loc);
         node->as.addr_of.name = name_tok->text;
+        return node;
+    }
+    /* *expr — dereference (read from address) */
+    if (match(p, TOK_STAR)) {
+        Token *op_tok = previous(p);
+        AstNode *operand = parse_unary(p);
+        AstNode *node = ast_new(p->arena, NODE_DEREF, op_tok->loc);
+        node->as.deref.operand = operand;
         return node;
     }
     return parse_call(p);

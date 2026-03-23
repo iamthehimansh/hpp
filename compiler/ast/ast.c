@@ -69,6 +69,8 @@ const char *ast_node_kind_str(AstNodeKind kind)
     case NODE_ASSIGN_EXPR:   return "AssignExpr";
     case NODE_CAST_EXPR:     return "CastExpr";
     case NODE_ADDR_OF:       return "AddrOf";
+    case NODE_DEREF:         return "Deref";
+    case NODE_DEREF_ASSIGN:  return "DerefAssign";
     case NODE_TYPE_BIT:      return "TypeBit";
     case NODE_TYPE_NAMED:    return "TypeNamed";
     }
@@ -319,6 +321,17 @@ void ast_print(AstNode *node, int indent)
 
     case NODE_ADDR_OF:
         printf("AddrOf '%s'\n", node->as.addr_of.name);
+        break;
+
+    case NODE_DEREF:
+        printf("Deref\n");
+        ast_print(node->as.deref.operand, indent + 2);
+        break;
+
+    case NODE_DEREF_ASSIGN:
+        printf("DerefAssign\n");
+        ast_print(node->as.deref_assign.addr, indent + 2);
+        ast_print(node->as.deref_assign.value, indent + 2);
         break;
 
     case NODE_TYPE_BIT:

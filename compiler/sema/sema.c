@@ -904,6 +904,22 @@ static HppType *sema_expr(Sema *sema, AstNode *node)
         result = type_make_bitn(sema->arena, 64);
         break;
     }
+    case NODE_DEREF: {
+        /* *ptr — read from address, returns long */
+        HppType *addr_type = sema_expr(sema, node->as.deref.operand);
+        (void)addr_type;
+        result = type_make_bitn(sema->arena, 64);
+        break;
+    }
+    case NODE_DEREF_ASSIGN: {
+        /* *ptr = val — write to address */
+        HppType *addr_type = sema_expr(sema, node->as.deref_assign.addr);
+        HppType *val_type = sema_expr(sema, node->as.deref_assign.value);
+        (void)addr_type;
+        (void)val_type;
+        result = type_make_bitn(sema->arena, 64);
+        break;
+    }
     default:
         sema_error(sema, node->loc,
                    "unexpected expression: %s",
