@@ -224,7 +224,7 @@ static void gen_bool_lit(CodeGen *cg, AstNode *node) {
 static void gen_string_lit(CodeGen *cg, AstNode *node) {
     int id = add_string_literal(node->as.string_lit.text, node->as.string_lit.len);
     node->as.string_lit.data_id = id;
-    emit(cg, "    lea rax, [rel .str%d]\n", id);
+    emit(cg, "    lea rax, [rel __str%d]\n", id);
 }
 
 static void gen_ident_expr(CodeGen *cg, AstNode *node) {
@@ -468,6 +468,16 @@ static void gen_expr(CodeGen *cg, AstNode *node) {
         case NODE_UNARY_EXPR:  gen_unary_expr(cg, node);  break;
         case NODE_CALL_EXPR:   gen_call_expr(cg, node);   break;
         case NODE_CAST_EXPR:   gen_cast_expr(cg, node);   break;
+        case NODE_ADDR_OF: {
+            VarMapEntry *v = var_map_find(&g_var_map, node->as.addr_of.name);
+            if (v) {
+                emit(cg, "    lea rax, [rbp - %d]\n", v->offset);
+            } else {
+                error_report(node->loc, ERR_CODEGEN,
+                             "cannot take address of '%s'", node->as.addr_of.name);
+            }
+            break;
+        }
         default:
             error_report(node->loc, ERR_CODEGEN,
                          "unexpected node kind '%s' in expression",
@@ -805,6 +815,7 @@ static void collect_externs(CodeGen *cg, AstNode *node) {
         case NODE_IMPORT:
         case NODE_LINK:
         case NODE_STRING_LIT:
+        case NODE_ADDR_OF:
         case NODE_TYPE_BIT:
         case NODE_TYPE_NAMED:
             break;
@@ -865,7 +876,7 @@ static void gen_program(CodeGen *cg, AstNode *program) {
     if (g_string_count > 0) {
         emit(cg, "\nsection .data\n");
         for (int i = 0; i < g_string_count; i++) {
-            emit(cg, ".str%d: db ", g_strings[i].id);
+            emit(cg, "__str%d: db ", g_strings[i].id);
             for (size_t j = 0; j < g_strings[i].len; j++) {
                 if (j > 0) emit(cg, ", ");
                 emit(cg, "%d", (unsigned char)g_strings[i].text[j]);

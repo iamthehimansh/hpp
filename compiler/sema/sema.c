@@ -894,6 +894,16 @@ static HppType *sema_expr(Sema *sema, AstNode *node)
     case NODE_CALL_EXPR:    result = sema_call(sema, node);     break;
     case NODE_ASSIGN_EXPR:  result = sema_assign(sema, node);   break;
     case NODE_CAST_EXPR:    result = sema_cast(sema, node);     break;
+    case NODE_ADDR_OF: {
+        /* &var — verify variable exists, return long (pointer) */
+        Symbol *sym = symtab_lookup(sema->symbols, node->as.addr_of.name);
+        if (!sym) {
+            sema_error(sema, node->loc, "undefined variable '%s'",
+                       node->as.addr_of.name);
+        }
+        result = type_make_bitn(sema->arena, 64);
+        break;
+    }
     default:
         sema_error(sema, node->loc,
                    "unexpected expression: %s",

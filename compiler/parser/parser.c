@@ -1048,6 +1048,14 @@ static AstNode *parse_unary(Parser *p)
         node->as.unary.operand = operand;
         return node;
     }
+    /* &variable — address-of operator */
+    if (match(p, TOK_AMP)) {
+        Token *op_tok = previous(p);
+        Token *name_tok = expect(p, TOK_IDENT, "expected variable name after '&'");
+        AstNode *node = ast_new(p->arena, NODE_ADDR_OF, op_tok->loc);
+        node->as.addr_of.name = name_tok->text;
+        return node;
+    }
     return parse_call(p);
 }
 
