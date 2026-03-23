@@ -22,12 +22,13 @@ for m in \
 done
 
 # C modules
-for f in compiler/codegen/codegen.c compiler/common/error.c \
+for f in compiler/codegen/codegen.c \
          compiler/common/macro.c compiler/main.c \
          compiler/parser/parser.c compiler/sema/sema.c; do
     gcc -Wall -Wextra -std=c11 -g -Icompiler -c -o "/tmp/hpp_sh_$(basename $f .c).o" "$f"
 done
-gcc -Wall -Wextra -std=c11 -g -Icompiler -c -o /tmp/token_print.o compiler_hpp/lexer/token_print.c
+rm -f /tmp/hpp_sh_error.o  # remove stale old error.c object
+gcc -Wall -Wextra -std=c11 -g -Icompiler -c -o /tmp/error_bridge.o compiler_hpp/common/error_bridge.c
 gcc -Wall -Wextra -std=c11 -g -Icompiler -c -o /tmp/types_globals.o compiler_hpp/sema/types_globals.c
 nasm -f elf64 -o /tmp/std_ll.o compiler/stdlib/std_ll.asm
 nasm -f elf64 -o /tmp/bridge.o /tmp/bridge.asm
@@ -35,11 +36,11 @@ nasm -f elf64 -o /tmp/printf.o compiler/stdlib/std/printf.asm
 
 gcc -no-pie -o build/hpp_hybrid \
     /tmp/ast_hpp.o /tmp/backend_hpp.o /tmp/hpp_sh_codegen.o \
-    /tmp/arena_hpp.o /tmp/args_hpp.o /tmp/hpp_sh_error.o \
+    /tmp/arena_hpp.o /tmp/args_hpp.o /tmp/error_bridge.o \
     /tmp/hpp_sh_macro.o /tmp/module_hpp.o \
     /tmp/lexer_hpp.o /tmp/hpp_sh_main.o \
     /tmp/hpp_sh_parser.o /tmp/hpp_sh_sema.o \
-    /tmp/token_hpp.o /tmp/token_print.o \
+    /tmp/token_hpp.o \
     /tmp/file_io_hpp.o /tmp/strtab_hpp.o \
     /tmp/types_hpp.o /tmp/types_globals.o \
     /tmp/opp_table_hpp.o /tmp/symtab_hpp.o \

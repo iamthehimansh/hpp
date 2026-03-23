@@ -1,8 +1,31 @@
-// token_kind_str() rewritten in H++
-// Pure function: takes int, returns string pointer. No I/O dependencies.
+// token.c fully rewritten in H++: token_kind_str + token_print
+
+import std/{io, fmt, printf, mem};
 
 def int  bit[32];
 def long bit[64];
+def byte bit[8];
+
+// Token offsets (56 bytes)
+const TK_KIND      = 0;
+const TK_LOC_LINE  = 16;
+const TK_LOC_COL   = 20;
+const TK_TEXT       = 24;
+const TK_TEXT_LEN   = 32;
+const TK_INT_VAL    = 40;
+const TK_BOOL_VAL   = 48;
+
+fn error_category_str(cat: int) -> long {
+    switch (cat) {
+        case 0: return "lexer";
+        case 1: return "parser";
+        case 2: return "type";
+        case 3: return "sema";
+        case 4: return "codegen";
+        case 5: return "internal";
+        default: return "unknown";
+    }
+}
 
 fn token_kind_str(kind: int) -> long {
     switch (kind) {
@@ -87,4 +110,47 @@ fn token_kind_str(kind: int) -> long {
         case 78: return "ERROR";
         default: return "UNKNOWN";
     }
+}
+
+// token_print(tok: pointer to Token struct)
+// Prints: line:col KIND 'text' [value=N]
+fn token_print(tok: long) {
+    int kind     = mem_read32(tok, TK_KIND);
+    int line     = mem_read32(tok, TK_LOC_LINE);
+    int col      = mem_read32(tok, TK_LOC_COL);
+    long text    = mem_read64(tok, TK_TEXT);
+    long text_len = mem_read64(tok, TK_TEXT_LEN);
+    long int_val = mem_read64(tok, TK_INT_VAL);
+    int bval     = mem_read8(tok, TK_BOOL_VAL);
+
+    long name = token_kind_str(kind);
+
+    // line:col KIND 'text'
+    print_int(line);
+    print_char(':');
+    print_int(col);
+    print_char(' ');
+    puts(name);
+    puts(" '");
+    if (text != 0) {
+        print_str(text, text_len);
+    }
+    print_char('\'');
+
+    // value for literals
+    if (kind == 0) {
+        // TOK_INT_LIT
+        puts(" value=");
+        print_long(int_val);
+    } else {
+        if (kind == 1) {
+            // TOK_BOOL_LIT
+            if (bval != 0) {
+                puts(" value=true");
+            } else {
+                puts(" value=false");
+            }
+        }
+    }
+    print_char('\n');
 }
