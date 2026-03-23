@@ -1,0 +1,107 @@
+.TH HPP 1 "2026-03-23" "H++ 1.0" "H++ Compiler"
+.SH NAME
+hpp \- H++ programming language compiler
+.SH SYNOPSIS
+.B hpp
+.I source.hpp
+.RB [ \-o
+.IR output ]
+.RB [ \-S ]
+.RB [ \-t
+.IR target ]
+.RB [ \-\-dump\-tokens ]
+.RB [ \-\-dump\-ast ]
+.RB [ \-\-help ]
+.SH DESCRIPTION
+.B hpp
+compiles H++ source files (.hpp) into native Linux x86-64 executables.
+The compiler pipeline is: Lexer \(-> Macros \(-> Parser \(-> Sema \(-> Codegen \(-> NASM \(-> ld \(-> executable.
+.PP
+H++ is a statically-typed language built on a single primitive:
+.BR bit .
+All types are zero-cost abstractions over bit-level representations.
+.SH OPTIONS
+.TP
+.BI \-o " output"
+Set the output file name. Default: input filename without extension (or with .asm for \-S).
+.TP
+.B \-S
+Output assembly only. Do not assemble or link. Produces a .asm file (NASM Intel syntax).
+.TP
+.BI \-t " target"
+Set compilation target. Currently only
+.B linux
+is supported (default).
+.TP
+.B \-\-dump\-tokens
+Lex the source and print the token stream to stdout. Does not parse or compile.
+.TP
+.B \-\-dump\-ast
+Lex and parse the source, then print the AST (Abstract Syntax Tree) to stdout.
+.TP
+.B \-\-help
+Print usage information and exit.
+.SH EXAMPLES
+.PP
+Compile and run a program:
+.RS
+.nf
+hpp hello.hpp -o hello
+\&./hello
+.fi
+.RE
+.PP
+Output assembly only:
+.RS
+.nf
+hpp program.hpp -S -o program.asm
+.fi
+.RE
+.PP
+Debug the lexer:
+.RS
+.nf
+hpp program.hpp --dump-tokens
+.fi
+.RE
+.PP
+Debug the parser:
+.RS
+.nf
+hpp program.hpp --dump-ast
+.fi
+.RE
+.SH FILES
+.TP
+.I compiler/stdlib/std_ll.asm
+Linux syscall wrappers (73 functions)
+.TP
+.I compiler/stdlib/std_util.asm
+Utility functions (40+ functions)
+.TP
+.I compiler/stdlib/std/*.hdef
+Module definition files for the standard library
+.TP
+.I compiler/stdlib/std/arr.asm
+Array operations library
+.SH ENVIRONMENT
+.B hpp
+requires
+.B nasm
+(Netwide Assembler) and
+.B ld
+(GNU linker) to be installed and available in PATH.
+.SH EXIT STATUS
+.TP
+.B 0
+Compilation successful.
+.TP
+.B 1
+Compilation failed (syntax error, type error, linker error, etc.).
+.SH SEE ALSO
+.BR hpp-lang (7),
+.BR hpp-stdlib (3),
+.BR nasm (1),
+.BR ld (1)
+.SH AUTHORS
+H++ compiler and language design.

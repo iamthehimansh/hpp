@@ -1,0 +1,202 @@
+.TH HPP-STDLIB 3 "2026-03-23" "H++ 1.0" "H++ Standard Library"
+.SH NAME
+hpp-stdlib \- H++ standard library functions
+.SH SYNOPSIS
+.nf
+\fBimport std/io;\fR
+\fBimport std/fmt;\fR
+\fBimport std/mem;\fR
+\fBimport std/str;\fR
+\fBimport std/arr;\fR
+\fBimport std/time;\fR
+\fBimport std/rand;\fR
+\fBimport std/proc;\fR
+\fBimport std/sys;\fR
+\fBimport std/net;\fR
+.fi
+.SH DESCRIPTION
+The H++ standard library provides functions for I/O, memory, strings, arrays,
+time, random numbers, and raw Linux syscalls. Import with
+\fBimport std;\fR for everything or \fBimport std/{io,fmt};\fR for specific modules.
+.SH std/io \- INPUT/OUTPUT
+.SS Output
+.TP
+\fBprint_char\fR(\fIc\fR: int)
+Print single character (low byte).
+.TP
+\fBprint_newline\fR()
+Print newline (\\n).
+.TP
+\fBprint_str\fR(\fIbuf\fR: long, \fIlen\fR: long)
+Print \fIlen\fR bytes from \fIbuf\fR to stdout.
+.TP
+\fBputs\fR(\fIs\fR: long)
+Print null-terminated string to stdout (no newline).
+.TP
+\fBprintln\fR(\fIs\fR: long)
+Print null-terminated string + newline.
+.TP
+\fBeputs\fR(\fIs\fR: long)
+Print null-terminated string to stderr.
+.TP
+\fBeprint_str\fR(\fIbuf\fR: long, \fIlen\fR: long)
+Print \fIlen\fR bytes to stderr.
+.SS Input
+.TP
+\fBread_char\fR() -> int
+Read one byte from stdin. Returns -1 on EOF.
+.TP
+\fBread_stdin\fR(\fIbuf\fR: long, \fImax\fR: long) -> long
+Read up to \fImax\fR bytes from stdin. Returns bytes read.
+.SS File Operations
+.TP
+\fBfile_open_read\fR(\fIpath\fR: long) -> int
+Open file for reading. Returns fd or negative on error.
+.TP
+\fBfile_open_write\fR(\fIpath\fR: long) -> int
+Open/create file for writing (truncates). Returns fd.
+.TP
+\fBfile_open_append\fR(\fIpath\fR: long) -> int
+Open/create file for appending. Returns fd.
+.TP
+\fBfile_read\fR(\fIfd\fR: int, \fIbuf\fR: long, \fIcount\fR: long) -> long
+Read from file descriptor.
+.TP
+\fBfile_write\fR(\fIfd\fR: int, \fIbuf\fR: long, \fIcount\fR: long) -> long
+Write to file descriptor.
+.TP
+\fBfile_close\fR(\fIfd\fR: int) -> int
+Close file descriptor.
+.TP
+\fBfile_size\fR(\fIfd\fR: int) -> long
+Get file size in bytes.
+.SH std/fmt \- FORMATTING
+.TP
+\fBprint_int\fR(\fIn\fR: int)
+Print unsigned 32-bit integer as decimal.
+.TP
+\fBprint_long\fR(\fIn\fR: long)
+Print unsigned 64-bit integer as decimal.
+.TP
+\fBprint_signed\fR(\fIn\fR: int)
+Print signed 32-bit integer.
+.TP
+\fBprint_hex\fR(\fIn\fR: long)
+Print as hexadecimal with 0x prefix.
+.TP
+\fBitoa\fR(\fIn\fR: int, \fIbuf\fR: long) -> long
+Convert integer to string in buffer. Returns length.
+.TP
+\fBatoi\fR(\fIs\fR: long) -> int
+Convert decimal string to integer.
+.SH std/mem \- MEMORY
+.SS Allocation
+.TP
+\fBalloc\fR(\fIsize\fR: long) -> long
+Allocate \fIsize\fR bytes via mmap. Returns pointer or 0 on failure.
+.TP
+\fBfree\fR(\fIaddr\fR: long, \fIsize\fR: long) -> int
+Free allocation. \fIsize\fR must match the original alloc.
+.TP
+\fBrealloc\fR(\fIold\fR: long, \fIold_size\fR: long, \fInew_size\fR: long) -> long
+Resize allocation. May move data. Returns new pointer or 0.
+.SS Operations
+.TP
+\fBmem_copy\fR(\fIdst\fR: long, \fIsrc\fR: long, \fIn\fR: long)
+Copy \fIn\fR bytes from \fIsrc\fR to \fIdst\fR.
+.TP
+\fBmem_set\fR(\fIdst\fR: long, \fIval\fR: int, \fIn\fR: long)
+Fill \fIn\fR bytes with \fIval\fR.
+.TP
+\fBmem_cmp\fR(\fIa\fR: long, \fIb\fR: long, \fIn\fR: long) -> int
+Compare \fIn\fR bytes. Returns 0 if equal.
+.TP
+\fBmem_zero\fR(\fIdst\fR: long, \fIn\fR: long)
+Zero \fIn\fR bytes.
+.SS Typed Access
+.TP
+\fBmem_read8\fR / \fBmem_read16\fR / \fBmem_read32\fR / \fBmem_read64\fR(\fIptr\fR: long, \fIoffset\fR: int) -> int|long
+Read 1/2/4/8 bytes at ptr+offset.
+.TP
+\fBmem_write8\fR / \fBmem_write16\fR / \fBmem_write32\fR / \fBmem_write64\fR(\fIptr\fR: long, \fIoffset\fR: int, \fIval\fR: int|long)
+Write 1/2/4/8 bytes at ptr+offset.
+.SH std/str \- STRINGS
+.TP
+\fBstr_len\fR(\fIs\fR: long) -> long
+Length of null-terminated string.
+.TP
+\fBstr_eq\fR(\fIa\fR: long, \fIb\fR: long) -> int
+1 if strings are equal, 0 otherwise.
+.TP
+\fBstr_copy\fR(\fIdst\fR: long, \fIsrc\fR: long) -> long
+Copy null-terminated string. Returns \fIdst\fR.
+.TP
+\fBstr_cat\fR(\fIdst\fR: long, \fIsrc\fR: long) -> long
+Append \fIsrc\fR to end of \fIdst\fR. Returns \fIdst\fR.
+.TP
+\fBstr_chr\fR(\fIs\fR: long, \fIc\fR: int) -> long
+Find first occurrence of byte \fIc\fR. Returns pointer or 0.
+.SH std/arr \- ARRAYS
+.SS Byte Arrays
+\fBbyte_new\fR, \fBbyte_free\fR, \fBbyte_get\fR, \fBbyte_set\fR, \fBbyte_fill\fR, \fBbyte_copy\fR
+.SS Int Arrays
+\fBint_new\fR, \fBint_free\fR, \fBint_get\fR, \fBint_set\fR, \fBint_fill\fR, \fBint_copy\fR, \fBint_swap\fR, \fBint_find\fR, \fBint_sum\fR, \fBint_min\fR, \fBint_max\fR, \fBint_reverse\fR, \fBint_sort\fR, \fBint_print\fR
+.SS Long Arrays
+\fBlong_new\fR, \fBlong_free\fR, \fBlong_get\fR, \fBlong_set\fR, \fBlong_fill\fR, \fBlong_copy\fR, \fBlong_swap\fR
+.PP
+Array syntax sugar: \fBarr[i]\fR reads, \fBarr[i] = val\fR writes.
+Declaration: \fBint arr[5];\fR or \fBint arr[] = [1,2,3];\fR
+.SH std/time \- TIME
+.TP
+\fBsleep_ms\fR(\fIms\fR: int)
+Sleep for \fIms\fR milliseconds.
+.TP
+\fBsleep_sec\fR(\fIsec\fR: int)
+Sleep for \fIsec\fR seconds.
+.TP
+\fBget_time_sec\fR() -> long
+Unix timestamp in seconds.
+.SH std/rand \- RANDOM
+.TP
+\fBrandom_int\fR() -> int
+Random 32-bit unsigned integer.
+.TP
+\fBrandom_bytes\fR(\fIbuf\fR: long, \fIcount\fR: long) -> long
+Fill \fIbuf\fR with \fIcount\fR random bytes. Returns bytes written.
+.SH std/proc \- PROCESS
+.TP
+\fBexit\fR(\fIcode\fR: int)
+Exit process immediately.
+.TP
+\fBabort\fR()
+Kill process with SIGABRT.
+.SH std/sys \- SYSCALLS
+73 raw Linux x86-64 syscall wrappers, all named \fBsys_<name>\fR.
+.PP
+\fBFile I/O:\fR sys_read, sys_write, sys_open, sys_close, sys_stat, sys_fstat,
+sys_lstat, sys_lseek, sys_pread64, sys_pwrite64, sys_access, sys_pipe,
+sys_dup, sys_dup2, sys_fcntl, sys_fsync, sys_truncate, sys_ftruncate,
+sys_rename, sys_unlink, sys_readlink, sys_chmod, sys_fchmod, sys_chown
+.PP
+\fBMemory:\fR sys_mmap, sys_mprotect, sys_munmap, sys_brk, sys_mremap
+.PP
+\fBProcess:\fR sys_getpid, sys_fork, sys_execve, sys_exit, sys_wait4, sys_kill,
+sys_getuid, sys_getgid, sys_setuid, sys_setgid, sys_geteuid, sys_getegid,
+sys_getppid, sys_setsid, sys_exit_group
+.PP
+\fBDirectory:\fR sys_getcwd, sys_chdir, sys_mkdir, sys_rmdir, sys_getdents64
+.PP
+\fBNetwork:\fR sys_socket, sys_bind, sys_listen, sys_accept, sys_connect,
+sys_sendto, sys_recvfrom, sys_shutdown, sys_setsockopt, sys_getsockopt
+.PP
+\fBTime:\fR sys_nanosleep, sys_gettimeofday, sys_time, sys_clock_gettime
+.PP
+\fBSignal:\fR sys_rt_sigaction, sys_rt_sigprocmask, sys_pause, sys_alarm
+.PP
+\fBMisc:\fR sys_poll, sys_ioctl, sys_select, sys_uname, sys_getrusage,
+sys_sysinfo, sys_getrandom
+.SH std/net \- NETWORK
+Convenience import \(em same as the network functions in \fBstd/sys\fR.
+.SH SEE ALSO
+.BR hpp (1),
+.BR hpp-lang (7)

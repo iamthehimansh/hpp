@@ -1,0 +1,174 @@
+.TH HPP-LANG 7 "2026-03-23" "H++ 1.0" "H++ Language Reference"
+.SH NAME
+hpp-lang \- H++ programming language overview
+.SH DESCRIPTION
+H++ is a statically-typed, natively-compiled language where every value is
+.BR bit[n] .
+All types are zero-cost aliases resolved at compile time.
+.SH TYPES
+.PP
+The single primitive is \fBbit\fR. Named types are aliases:
+.RS
+.nf
+def byte  bit[8];
+def int   bit[32];
+def long  bit[64];
+.fi
+.RE
+.PP
+Types are equivalent if they have the same bit width. Implicit widening
+(small \(-> large) is supported.
+.SH VARIABLES
+.TS
+l l l.
+Form	Mutable	Type
+_
+const x = 42;	No	Inferred
+let y = 10;	Yes	Inferred
+int z = 100;	Yes	Explicit
+int w;	Yes	Zero-init
+.TE
+.SH FUNCTIONS
+.RS
+.nf
+fn add(a: int, b: int) -> int {
+    return a + b;
+}
+
+fn main() -> int {
+    return 0;
+}
+.fi
+.RE
+.PP
+Parameters are immutable. Entry point is \fBfn main() -> int\fR.
+Calling convention: System V AMD64 ABI.
+.SH OPERATORS
+.PP
+Precedence (highest to lowest):
+.TS
+l l l.
+Level	Operators	Description
+_
+1	* & ! ~ -	Unary (deref, addr, not, bitnot, neg)
+2	* / %	Multiply, divide, modulo
+3	+ -	Add, subtract
+4	<< >>	Shift
+5	< <= > >=	Comparison
+6	== !=	Equality
+7	&	Bitwise AND
+8	^	Bitwise XOR
+9	|	Bitwise OR
+10	&&	Logical AND (short-circuit)
+11	||	Logical OR (short-circuit)
+12	=	Assignment
+.TE
+.SH CONTROL FLOW
+.RS
+.nf
+if (x > 0) { ... } else { ... }
+while (n > 0) { n = n - 1; }
+for (int i = 0; i < 10; i = i + 1) { ... }
+break;
+continue;
+return expr;
+.fi
+.RE
+.PP
+Conditions must be type \fBbit\fR. Use comparison operators on wider types.
+.SH ARRAYS
+.PP
+Requires \fBimport std/arr;\fR
+.RS
+.nf
+int nums[5];                     // allocate
+int primes[] = [2, 3, 5, 7];    // init
+int fib[4] = [1, 1, 2, 3];      // size + init
+
+nums[0] = 42;                   // write
+int x = nums[0];                // read
+int_free(nums, 5);              // free
+.fi
+.RE
+.PP
+Works for \fBbyte\fR, \fBint\fR, \fBlong\fR, and custom types (mapped by bit width).
+.SH STRINGS
+.RS
+.nf
+println("Hello, World!");
+long s = "test";
+print_char('A');
+print_char('\\n');
+s[0]                            // byte access
+.fi
+.RE
+.PP
+Escape sequences: \\n \\t \\r \\0 \\\\ \\" \\'
+.SH STRUCTS
+.RS
+.nf
+defx Point { int x, int y }
+
+Point p;
+p.x = 10;
+p.y = 20;
+int sum = p.x + p.y;
+free(p, 8);
+.fi
+.RE
+.PP
+Contiguous C-like memory layout. \fB&x + 4 == &y\fR for 32-bit fields.
+.SH POINTERS
+.RS
+.nf
+int x = 42;
+long ptr = &x;        // address-of
+int val = *ptr;        // dereference read
+*ptr = 99;             // dereference write
+.fi
+.RE
+.SH MACROS
+.RS
+.nf
+macro log(msg) { println(msg) }
+macro square(x) { x * x }
+.fi
+.RE
+.PP
+Token-level substitution at compile time.
+.SH MODULES
+.RS
+.nf
+import std;                   // all stdlib
+import std/io;                // single module
+import std/{io, fmt, mem};    // multiple
+import mylib;                 // user library
+link "external.o";            // link .o file
+.fi
+.RE
+.PP
+Modules need a \fB.hdef\fR file (declarations) and an implementation
+(\fB.asm\fR, \fB.hpp\fR, or \fB.o\fR).
+.SH INLINE ASSEMBLY
+.RS
+.nf
+asm linux {
+    mov rax, 60
+    mov rdi, 0
+    syscall
+}
+.fi
+.RE
+.PP
+NASM Intel syntax. Only the matching target block is compiled.
+.SH OPERATOR OVERLOADING
+.RS
+.nf
+opp int + int -> int {
+    asm linux { add eax, ebx }
+}
+.fi
+.RE
+.SH SEE ALSO
+.BR hpp (1),
+.BR hpp-stdlib (3)
