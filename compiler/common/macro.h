@@ -9,6 +9,7 @@
 #define MAX_MACRO_PARAMS 16
 #define MAX_MACRO_BODY 1024
 #define MAX_ARRAY_VARS 256
+#define MAX_TYPE_DEFS 128
 
 typedef struct {
     const char *name;                       /* interned macro name */
@@ -24,12 +25,20 @@ typedef struct {
     const char *type_name;  /* element type: "int", "byte", "long" */
 } ArrayVarEntry;
 
+/* Tracks user-defined type widths from def statements */
+typedef struct {
+    const char *type_name;  /* e.g., "short", "word" */
+    int bit_width;          /* e.g., 16 */
+} TypeWidthEntry;
+
 typedef struct {
     Arena *arena;
     MacroDef macros[MAX_MACROS];
     int macro_count;
     ArrayVarEntry array_vars[MAX_ARRAY_VARS];
     int array_var_count;
+    TypeWidthEntry type_widths[MAX_TYPE_DEFS];
+    int type_width_count;
 } MacroProcessor;
 
 /* Create the macro processor */

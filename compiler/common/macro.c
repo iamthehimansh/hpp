@@ -8,14 +8,61 @@ MacroProcessor *macro_create(Arena *arena) {
     mp->arena = arena;
     mp->macro_count = 0;
     mp->array_var_count = 0;
+    mp->type_width_count = 0;
     return mp;
+}
+
+/* Register a user-defined type's bit width */
+static void register_type_width(MacroProcessor *mp, const char *name, int width) {
+    if (mp->type_width_count >= MAX_TYPE_DEFS) return;
+    mp->type_widths[mp->type_width_count].type_name = name;
+    mp->type_widths[mp->type_width_count].bit_width = width;
+    mp->type_width_count++;
+}
+
+/* Get bit width for a type name. Returns 0 if unknown. */
+static int get_type_width(MacroProcessor *mp, const char *name) {
+    for (int i = 0; i < mp->type_width_count; i++) {
+        if (strcmp(mp->type_widths[i].type_name, name) == 0)
+            return mp->type_widths[i].bit_width;
+    }
+    return 0;
+}
+
+/* Map a type name to the backend array type (byte/int/long) based on bit width */
+static const char *map_to_array_backend(MacroProcessor *mp, const char *type_name) {
+    /* Built-in mappings */
+    if (strcmp(type_name, "byte") == 0) return "byte";
+    if (strcmp(type_name, "int") == 0)  return "int";
+    if (strcmp(type_name, "long") == 0) return "long";
+
+    /* Look up custom type width */
+    int w = get_type_width(mp, type_name);
+    if (w > 0) {
+        if (w <= 8)  return "byte";
+        if (w <= 32) return "int";
+        return "long";
+    }
+
+    /* Unknown type — default to int */
+    return "int";
 }
 
 /* Register an array variable with its element type */
 static void register_array_var(MacroProcessor *mp, const char *var_name, const char *type_name) {
     if (mp->array_var_count >= MAX_ARRAY_VARS) return;
+    /* Map the declared type to the backend array type */
+    const char *backend = map_to_array_backend(mp, type_name);
     mp->array_vars[mp->array_var_count].var_name = var_name;
-    mp->array_vars[mp->array_var_count].type_name = type_name;
+    mp->array_vars[mp->array_var_count].type_name = backend;
+    mp->array_var_count++;
+}
+
+/* Register a variable as a byte array (for string variables) */
+static void register_string_var(MacroProcessor *mp, const char *var_name) {
+    if (mp->array_var_count >= MAX_ARRAY_VARS) return;
+    mp->array_vars[mp->array_var_count].var_name = var_name;
+    mp->array_vars[mp->array_var_count].type_name = "byte";
     mp->array_var_count++;
 }
 
@@ -313,7 +360,8 @@ static Token *rewrite_array_decls(MacroProcessor *mp, Token *tokens, int count,
         size_t var_len = tokens[i + 1].text_len;
         i += 2; /* skip TYPE and NAME */
 
-        const char *new_fn = build_func_name(mp->arena, type_name, "_new");
+        const char *backend_type = map_to_array_backend(mp, type_name);
+        const char *new_fn = build_func_name(mp->arena, backend_type, "_new");
         size_t new_fn_len = strlen(new_fn);
 
         /* Now at '[' */
@@ -380,7 +428,7 @@ static Token *rewrite_array_decls(MacroProcessor *mp, Token *tokens, int count,
 
         /* Emit initializer: TYPE_set(VAR, 0, val0); TYPE_set(VAR, 1, val1); ... */
         if (has_init) {
-            const char *set_fn = build_func_name(mp->arena, type_name, "_set");
+            const char *set_fn = build_func_name(mp->arena, backend_type, "_set");
             size_t set_fn_len = strlen(set_fn);
             for (int j = 0; j < init_count && op < cap - 16; j++) {
                 out[op++] = make_synth_token(loc, TOK_IDENT, set_fn, set_fn_len);
@@ -525,6 +573,36 @@ static Token *rewrite_brackets(MacroProcessor *mp, Token *tokens, int count,
 /* ---- Public API ---- */
 
 Token *macro_process(MacroProcessor *mp, Token *tokens, int count, int *out_count) {
+    /* Pass 0a: scan for type definitions to learn bit widths */
+    for (int i = 0; i < count - 3; i++) {
+        /* Pattern: DEF IDENT BIT [ INT_LIT ] ; */
+        if (tokens[i].kind == TOK_DEF &&
+            tokens[i+1].kind == TOK_IDENT &&
+            tokens[i+2].kind == TOK_BIT &&
+            i+5 < count &&
+            tokens[i+3].kind == TOK_LBRACKET &&
+            tokens[i+4].kind == TOK_INT_LIT &&
+            tokens[i+5].kind == TOK_RBRACKET) {
+            register_type_width(mp, tokens[i+1].text, (int)tokens[i+4].int_value);
+        }
+    }
+
+    /* Pass 0b: scan for string variable assignments to register as byte arrays
+       Pattern: IDENT IDENT = STRING_LIT  (typed: long s = "hello")
+       Pattern: LET IDENT = STRING_LIT    (let s = "hello")
+       Pattern: CONST IDENT = STRING_LIT  (const s = "hello") */
+    for (int i = 0; i < count - 3; i++) {
+        if (tokens[i].kind == TOK_IDENT && tokens[i+1].kind == TOK_IDENT &&
+            tokens[i+2].kind == TOK_ASSIGN && tokens[i+3].kind == TOK_STRING_LIT) {
+            register_string_var(mp, tokens[i+1].text);
+        }
+        if ((tokens[i].kind == TOK_LET || tokens[i].kind == TOK_CONST) &&
+            tokens[i+1].kind == TOK_IDENT &&
+            tokens[i+2].kind == TOK_ASSIGN && tokens[i+3].kind == TOK_STRING_LIT) {
+            register_string_var(mp, tokens[i+1].text);
+        }
+    }
+
     /* Pass 1: extract macro definitions */
     int stripped_count = 0;
     Token *stripped = extract_macros(mp, tokens, count, &stripped_count);
