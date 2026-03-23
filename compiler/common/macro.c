@@ -18,6 +18,8 @@ MacroProcessor *macro_create(Arena *arena) {
     mp->type_width_count = 0;
     mp->struct_count = 0;
     mp->struct_var_count = 0;
+    mp->enum_count = 0;
+    mp->constant_count = 0;
     return mp;
 }
 
@@ -156,6 +158,7 @@ static Token *extract_macros(MacroProcessor *mp, Token *tokens, int count,
     /* Output: tokens with macro definitions removed */
     Token *out = arena_alloc(mp->arena, (size_t)count * sizeof(Token));
     int out_pos = 0;
+    int brace_depth = 0;
 
     for (int i = 0; i < count; ) {
         if (tokens[i].kind == TOK_MACRO) {
@@ -275,7 +278,63 @@ static Token *extract_macros(MacroProcessor *mp, Token *tokens, int count,
             if (i < count && tokens[i].kind == TOK_SEMICOLON) i++;
 
             mp->struct_count++;
+        } else if (tokens[i].kind == TOK_ENUM) {
+            /* Parse: enum NAME { MEMBER, MEMBER = VAL, ... } */
+            i++; /* skip 'enum' */
+            if (i >= count || tokens[i].kind != TOK_IDENT) { i++; continue; }
+            if (mp->enum_count >= MAX_ENUM_DEFS) { i++; continue; }
+
+            EnumDef *ed = &mp->enums[mp->enum_count];
+            ed->name = tokens[i].text;
+            ed->member_count = 0;
+            i++; /* skip name */
+
+            if (i < count && tokens[i].kind == TOK_LBRACE) {
+                i++; /* skip '{' */
+                int next_val = 0;
+                while (i < count && tokens[i].kind != TOK_RBRACE) {
+                    if (tokens[i].kind == TOK_IDENT) {
+                        if (ed->member_count < MAX_ENUM_MEMBERS) {
+                            ed->members[ed->member_count].name = tokens[i].text;
+                        }
+                        i++;
+                        if (i < count && tokens[i].kind == TOK_ASSIGN) {
+                            i++; /* skip '=' */
+                            if (i < count && tokens[i].kind == TOK_INT_LIT) {
+                                next_val = (int)tokens[i].int_value;
+                                i++;
+                            }
+                        }
+                        if (ed->member_count < MAX_ENUM_MEMBERS) {
+                            ed->members[ed->member_count].value = next_val;
+                            ed->member_count++;
+                        }
+                        next_val++;
+                    }
+                    if (i < count && tokens[i].kind == TOK_COMMA) i++;
+                }
+                if (i < count) i++; /* skip '}' */
+            }
+            if (i < count && tokens[i].kind == TOK_SEMICOLON) i++;
+            mp->enum_count++;
+        } else if (tokens[i].kind == TOK_CONST &&
+                   brace_depth == 0 &&
+                   i + 3 < count &&
+                   tokens[i+1].kind == TOK_IDENT &&
+                   tokens[i+2].kind == TOK_ASSIGN &&
+                   tokens[i+3].kind == TOK_INT_LIT) {
+            /* Top-level: const NAME = VALUE; — consume and store for rewriting */
+            if (mp->constant_count < MAX_CONSTANTS) {
+                mp->constants[mp->constant_count].name = tokens[i+1].text;
+                mp->constants[mp->constant_count].value = tokens[i+3].int_value;
+                mp->constant_count++;
+            }
+            i += 4;
+            if (i < count && tokens[i].kind == TOK_SEMICOLON) i++;
         } else {
+            /* Track brace depth for top-level const detection */
+            if (tokens[i].kind == TOK_LBRACE) brace_depth++;
+            else if (tokens[i].kind == TOK_RBRACE && brace_depth > 0) brace_depth--;
             out[out_pos++] = tokens[i++];
         }
     }
@@ -863,6 +922,74 @@ Token *macro_process(MacroProcessor *mp, Token *tokens, int count, int *out_coun
     /* Pass 1: extract macro and defx definitions */
     int stripped_count = 0;
     Token *stripped = extract_macros(mp, tokens, count, &stripped_count);
+
+    /* Pass 1a: rewrite enum member names and top-level const names → int literals */
+    if (mp->enum_count > 0 || mp->constant_count > 0) {
+        int cap = stripped_count + 256;
+        Token *rw = arena_alloc(mp->arena, (size_t)cap * sizeof(Token));
+        int rp = 0;
+        for (int i = 0; i < stripped_count; i++) {
+            if (stripped[i].kind == TOK_IDENT) {
+                bool found = false;
+                /* Check enum members */
+                for (int e = 0; e < mp->enum_count && !found; e++) {
+                    for (int m = 0; m < mp->enums[e].member_count; m++) {
+                        if (strcmp(stripped[i].text, mp->enums[e].members[m].name) == 0) {
+                            rw[rp++] = make_int_token(stripped[i].loc,
+                                (uint64_t)(unsigned int)mp->enums[e].members[m].value, mp->arena);
+                            found = true;
+                            break;
+                        }
+                    }
+                }
+                /* Check top-level constants */
+                for (int c = 0; c < mp->constant_count && !found; c++) {
+                    if (strcmp(stripped[i].text, mp->constants[c].name) == 0) {
+                        rw[rp++] = make_int_token(stripped[i].loc,
+                            mp->constants[c].value, mp->arena);
+                        found = true;
+                    }
+                }
+                if (!found) rw[rp++] = stripped[i];
+            } else {
+                rw[rp++] = stripped[i];
+            }
+        }
+        stripped = rw;
+        stripped_count = rp;
+    }
+
+    /* Pass 1a2: rewrite offsetof(StructName, field) → integer literal */
+    if (mp->struct_count > 0) {
+        int cap = stripped_count + 256;
+        Token *rw = arena_alloc(mp->arena, (size_t)cap * sizeof(Token));
+        int rp = 0;
+        for (int i = 0; i < stripped_count; ) {
+            if (i + 5 < stripped_count &&
+                stripped[i].kind == TOK_IDENT &&
+                stripped[i].text_len == 8 &&
+                memcmp(stripped[i].text, "offsetof", 8) == 0 &&
+                stripped[i+1].kind == TOK_LPAREN &&
+                stripped[i+2].kind == TOK_IDENT &&
+                stripped[i+3].kind == TOK_COMMA &&
+                stripped[i+4].kind == TOK_IDENT &&
+                stripped[i+5].kind == TOK_RPAREN) {
+                StructDef *sd = find_struct(mp, stripped[i+2].text);
+                if (sd) {
+                    StructField *fld = find_field(sd, stripped[i+4].text);
+                    if (fld) {
+                        rw[rp++] = make_int_token(stripped[i].loc,
+                            (uint64_t)(unsigned int)fld->byte_offset, mp->arena);
+                        i += 6;
+                        continue;
+                    }
+                }
+            }
+            rw[rp++] = stripped[i++];
+        }
+        stripped = rw;
+        stripped_count = rp;
+    }
 
     /* Pass 1b: rewrite struct variable declarations and dot notation */
     if (mp->struct_count > 0) {

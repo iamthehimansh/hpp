@@ -12,6 +12,9 @@
 #define MAX_TYPE_DEFS 128
 #define MAX_STRUCT_DEFS 64
 #define MAX_STRUCT_FIELDS 32
+#define MAX_ENUM_DEFS 64
+#define MAX_ENUM_MEMBERS 512
+#define MAX_CONSTANTS 256
 
 typedef struct {
     const char *name;                       /* interned macro name */
@@ -55,6 +58,19 @@ typedef struct {
     const char *struct_name;
 } StructVarEntry;
 
+/* Enum member */
+typedef struct { const char *name; int value; } EnumMember;
+
+/* Enum definition */
+typedef struct {
+    const char *name;
+    EnumMember members[MAX_ENUM_MEMBERS];
+    int member_count;
+} EnumDef;
+
+/* Top-level constant */
+typedef struct { const char *name; uint64_t value; } ConstantDef;
+
 typedef struct {
     Arena *arena;
     MacroDef macros[MAX_MACROS];
@@ -67,6 +83,10 @@ typedef struct {
     int struct_count;
     StructVarEntry struct_vars[MAX_ARRAY_VARS];
     int struct_var_count;
+    EnumDef enums[MAX_ENUM_DEFS];
+    int enum_count;
+    ConstantDef constants[MAX_CONSTANTS];
+    int constant_count;
 } MacroProcessor;
 
 /* Create the macro processor */

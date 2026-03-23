@@ -849,3 +849,12 @@ abort:
     mov rax, 60
     mov rdi, 134            ; 128 + SIGABRT(6)
     syscall
+
+; arg_str(argv: long, index: int) -> long
+; Returns pointer to the index-th command line argument string
+; argv is a pointer to array of 8-byte pointers (from _start)
+global arg_str
+arg_str:
+    movsxd rax, esi          ; sign-extend index
+    mov rax, [rdi + rax * 8] ; load 8-byte pointer from argv array
+    ret

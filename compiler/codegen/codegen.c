@@ -466,8 +466,21 @@ static void gen_call_expr(CodeGen *cg, AstNode *node) {
 }
 
 static void gen_cast_expr(CodeGen *cg, AstNode *node) {
-    /* For v1: casts are no-ops at runtime (same bit-width reinterpretation) */
     gen_expr(cg, node->as.cast.expr);
+    int src = 64, dst = 64;
+    if (node->as.cast.expr->resolved_type)
+        src = type_reg_size(node->as.cast.expr->resolved_type->bit_width);
+    if (node->resolved_type)
+        dst = type_reg_size(node->resolved_type->bit_width);
+    if (src == dst) return;
+    /* Narrowing: truncate to target width */
+    if (dst == 8)       emit(cg, "    movzx eax, al\n");
+    else if (dst == 16) emit(cg, "    movzx eax, ax\n");
+    else if (dst == 32) emit(cg, "    mov eax, eax\n");
+    /* Widening: zero-extend to 64-bit */
+    else if (dst == 64 && src == 8)  emit(cg, "    movzx rax, al\n");
+    else if (dst == 64 && src == 16) emit(cg, "    movzx rax, ax\n");
+    else if (dst == 64 && src == 32) emit(cg, "    mov eax, eax\n");
 }
 
 static void gen_expr(CodeGen *cg, AstNode *node) {

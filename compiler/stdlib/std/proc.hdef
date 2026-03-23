@@ -3,3 +3,4 @@ def long bit[64];
 
 fn exit(code: int);
 fn abort();
+fn arg_str(argv: long, index: int) -> long;
