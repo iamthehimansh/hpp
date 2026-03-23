@@ -1,0 +1,5 @@
+def int bit[32];
+
+fn double_it(n: int) -> int;
+fn triple_it(n: int) -> int;
+fn is_even(n: int) -> int;

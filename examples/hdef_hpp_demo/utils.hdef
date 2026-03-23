@@ -1,0 +1,6 @@
+def int bit[32];
+
+fn add(a: int, b: int) -> int;
+fn multiply(a: int, b: int) -> int;
+fn power(base: int, exp: int) -> int;
+fn sum_to(n: int) -> int;

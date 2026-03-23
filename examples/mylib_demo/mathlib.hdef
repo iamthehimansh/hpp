@@ -1,0 +1,9 @@
+def int bit[32];
+
+fn square(n: int) -> int;
+fn cube(n: int) -> int;
+fn max(a: int, b: int) -> int;
+fn min(a: int, b: int) -> int;
+fn clamp(val: int, lo: int, hi: int) -> int;
+fn abs_val(n: int) -> int;
+fn factorial(n: int) -> int;
