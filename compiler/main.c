@@ -150,6 +150,7 @@ int main(int argc, char **argv) {
     // Semantic analysis
     Sema sema;
     sema_init(&sema, arena, strtab, cargs.input_file);
+    if (cargs.lib_mode) sema.is_library = true;
 
     // Process imports and link directives BEFORE sema
     for (AstNodeList *n = program->as.program.decls; n; n = n->next) {
@@ -212,6 +213,7 @@ int main(int argc, char **argv) {
     // Code generation
     CodeGen codegen;
     codegen_init(&codegen, arena, sema.types, sema.symbols, sema.opps, cargs.target);
+    if (cargs.lib_mode) codegen.is_library = true;
     char *asm_output = codegen_generate(&codegen, program);
 
     if (error_has_errors() || !asm_output) {

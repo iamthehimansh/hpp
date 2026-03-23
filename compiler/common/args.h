@@ -8,6 +8,7 @@ typedef struct {
     const char *output_file;
     const char *target;
     bool asm_only;
+    bool lib_mode;
     bool dump_tokens;
     bool dump_ast;
 } CompilerArgs;

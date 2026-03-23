@@ -1,0 +1,90 @@
+// token_kind_str() rewritten in H++
+// Pure function: takes int, returns string pointer. No I/O dependencies.
+
+def int  bit[32];
+def long bit[64];
+
+fn token_kind_str(kind: int) -> long {
+    switch (kind) {
+        case 0:  return "INT_LIT";
+        case 1:  return "BOOL_LIT";
+        case 2:  return "STRING_LIT";
+        case 3:  return "FN";
+        case 4:  return "RETURN";
+        case 5:  return "DEF";
+        case 6:  return "IF";
+        case 7:  return "ELSE";
+        case 8:  return "FOR";
+        case 9:  return "WHILE";
+        case 10: return "BREAK";
+        case 11: return "CONTINUE";
+        case 12: return "CONST";
+        case 13: return "LET";
+        case 14: return "ASM";
+        case 15: return "OPP";
+        case 16: return "SWITCH";
+        case 17: return "CASE";
+        case 18: return "DEFAULT";
+        case 19: return "TRUE";
+        case 20: return "FALSE";
+        case 21: return "NULL";
+        case 22: return "BIT";
+        case 23: return "IMPORT";
+        case 24: return "LINK";
+        case 25: return "MACRO";
+        case 26: return "DEFX";
+        case 27: return "STRUCT";
+        case 28: return "ENUM";
+        case 29: return "MATCH";
+        case 30: return "AS";
+        case 31: return "IDENT";
+        case 32: return "PLUS";
+        case 33: return "MINUS";
+        case 34: return "STAR";
+        case 35: return "SLASH";
+        case 36: return "PERCENT";
+        case 37: return "ASSIGN";
+        case 38: return "EQUAL";
+        case 39: return "NOT_EQUAL";
+        case 40: return "LESS";
+        case 41: return "GREATER";
+        case 42: return "LESS_EQ";
+        case 43: return "GREATER_EQ";
+        case 44: return "AMP";
+        case 45: return "PIPE";
+        case 46: return "CARET";
+        case 47: return "TILDE";
+        case 48: return "BANG";
+        case 49: return "SHL";
+        case 50: return "SHR";
+        case 51: return "AND";
+        case 52: return "OR";
+        case 53: return "PLUS_ASSIGN";
+        case 54: return "MINUS_ASSIGN";
+        case 55: return "STAR_ASSIGN";
+        case 56: return "SLASH_ASSIGN";
+        case 57: return "PERCENT_ASSIGN";
+        case 58: return "AMP_ASSIGN";
+        case 59: return "PIPE_ASSIGN";
+        case 60: return "CARET_ASSIGN";
+        case 61: return "SHL_ASSIGN";
+        case 62: return "SHR_ASSIGN";
+        case 63: return "PLUS_PLUS";
+        case 64: return "MINUS_MINUS";
+        case 65: return "LPAREN";
+        case 66: return "RPAREN";
+        case 67: return "LBRACE";
+        case 68: return "RBRACE";
+        case 69: return "LBRACKET";
+        case 70: return "RBRACKET";
+        case 71: return "SEMICOLON";
+        case 72: return "COMMA";
+        case 73: return "COLON";
+        case 74: return "DOT";
+        case 75: return "ARROW";
+        case 76: return "ASM_BODY";
+        case 77: return "EOF";
+        case 78: return "ERROR";
+        default: return "UNKNOWN";
+    }
+}

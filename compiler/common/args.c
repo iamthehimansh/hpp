@@ -42,6 +42,8 @@ bool args_parse(int argc, char **argv, CompilerArgs *out) {
             }
         } else if (strcmp(argv[i], "-S") == 0) {
             out->asm_only = true;
+        } else if (strcmp(argv[i], "--lib") == 0 || strcmp(argv[i], "-c") == 0) {
+            out->lib_mode = true;
         } else if (strcmp(argv[i], "--dump-tokens") == 0) {
             out->dump_tokens = true;
         } else if (strcmp(argv[i], "--dump-ast") == 0) {

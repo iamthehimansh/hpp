@@ -689,10 +689,16 @@ static void gen_stmt(CodeGen *cg, AstNode *node) {
             sw_ctx.parent = cg->loop_ctx;
             cg->loop_ctx = &sw_ctx;
 
+            /* Use correct register size for comparison */
+            int sw_bits = 64;
+            if (node->as.switch_stmt.expr->resolved_type) {
+                int rs = type_reg_size(node->as.switch_stmt.expr->resolved_type->bit_width);
+                if (rs > 0) sw_bits = rs;
+            }
             for (int i = 0; i < node->as.switch_stmt.case_count; i++) {
                 case_labels[i] = new_label(cg);
-                emit(cg, "    cmp rax, %" PRIu64 "\n",
-                     node->as.switch_stmt.case_values[i]);
+                emit(cg, "    cmp %s, %" PRIu64 "\n",
+                     reg_a(sw_bits), node->as.switch_stmt.case_values[i]);
                 emit(cg, "    je .L%d\n", case_labels[i]);
             }
             if (node->as.switch_stmt.default_body) {
