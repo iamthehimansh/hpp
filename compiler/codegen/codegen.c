@@ -178,6 +178,10 @@ static void prescan_vars(CodeGen *cg, AstNode *node) {
             AstNodeList *it = node->as.block.stmts;
             while (it) {
                 prescan_vars(cg, it->node);
+                /* Stop scanning after return (dead code) */
+                if (it->node && it->node->kind == NODE_RETURN_STMT) {
+                    break;
+                }
                 it = it->next;
             }
             break;
@@ -743,6 +747,10 @@ static void gen_block(CodeGen *cg, AstNode *block) {
     AstNodeList *it = block->as.block.stmts;
     while (it) {
         gen_stmt(cg, it->node);
+        /* Stop generating code after a return statement (dead code elimination) */
+        if (it->node && it->node->kind == NODE_RETURN_STMT) {
+            break;
+        }
         it = it->next;
     }
 }

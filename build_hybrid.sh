@@ -14,7 +14,8 @@ compiler_hpp/common/args.hpp:args_hpp
 compiler_hpp/backend/backend.hpp:backend_hpp
 compiler_hpp/ast/ast.hpp:ast_hpp
 compiler_hpp/lexer/lexer.hpp:lexer_hpp
-compiler_hpp/common/module.hpp:module_hpp"
+compiler_hpp/common/module.hpp:module_hpp
+compiler_hpp/common/macro.hpp:macro_hpp"
 
 for m in $MODS; do
     src=$(echo $m | cut -d: -f1)
@@ -23,8 +24,8 @@ for m in $MODS; do
     nasm -f elf64 -o /tmp/${name}.o /tmp/${name}.asm
 done
 
-# C modules (macro, parser, sema, codegen, main stay in C)
-for f in compiler/codegen/codegen.c compiler/common/macro.c compiler/main.c \
+# C modules (parser, sema, codegen, main stay in C)
+for f in compiler/codegen/codegen.c compiler/main.c \
          compiler/parser/parser.c compiler/sema/sema.c; do
     gcc -Wall -Wextra -std=c11 -g -Icompiler -c -o "/tmp/hpp_sh_$(basename $f .c).o" "$f"
 done
@@ -38,7 +39,7 @@ nasm -f elf64 -o /tmp/printf.o compiler/stdlib/std/printf.asm
 gcc -no-pie -o build/hpp_hybrid \
     /tmp/ast_hpp.o /tmp/backend_hpp.o /tmp/hpp_sh_codegen.o \
     /tmp/arena_hpp.o /tmp/args_hpp.o /tmp/error_bridge.o \
-    /tmp/hpp_sh_macro.o /tmp/module_hpp.o \
+    /tmp/macro_hpp.o /tmp/module_hpp.o \
     /tmp/lexer_hpp.o /tmp/hpp_sh_main.o \
     /tmp/hpp_sh_parser.o /tmp/hpp_sh_sema.o \
     /tmp/token_hpp.o \

@@ -560,7 +560,7 @@ fn macro_create(arena: long) -> long {
 // ---------------------------------------------------------------------------
 //  Pass 1: Extract macro, defx, enum, const definitions
 // ---------------------------------------------------------------------------
-fn extract_macros_real(mp: long, tokens: long, count: int, out_count: long) -> long {
+fn extract_macros(mp: long, tokens: long, count: int, out_count: long) -> long {
     long arena = mp_arena(mp);
     long out = arena_alloc(arena, long(count) * long(TOK_SIZE));
     int op = 0;
@@ -798,11 +798,6 @@ fn extract_macros_real(mp: long, tokens: long, count: int, out_count: long) -> l
 
     mem_write32(out_count, 0, op);
     return out;
-}
-
-fn extract_macros(mp: long, tokens: long, count: int, out_count: long) -> long {
-    mem_write32(out_count, 0, count);
-    return tokens;
 }
 
 // ---------------------------------------------------------------------------
