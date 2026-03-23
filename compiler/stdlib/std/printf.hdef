@@ -1,0 +1,7 @@
+def int  bit[32];
+def long bit[64];
+
+fn fmt_fd(fd: int, fmt: long, a0: long, a1: long, a2: long, a3: long);
+fn fmt_out(fmt: long, a0: long, a1: long, a2: long, a3: long);
+fn fmt_err(fmt: long, a0: long, a1: long, a2: long, a3: long);
+fn fmt_buf(buf: long, fmt: long, a0: long, a1: long, a2: long, a3: long) -> int;
