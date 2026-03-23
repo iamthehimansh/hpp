@@ -3,13 +3,76 @@
 #include <string.h>
 #include <stdio.h>
 
+/* Forward declarations */
+static int get_type_width(MacroProcessor *mp, const char *name);
+static const char *map_to_array_backend(MacroProcessor *mp, const char *type_name);
+static const char *build_func_name(Arena *arena, const char *type, const char *suffix);
+static Token make_synth_token(SourceLoc loc, TokenKind kind, const char *text, size_t len);
+static Token make_int_token(SourceLoc loc, uint64_t val, Arena *arena);
+
 MacroProcessor *macro_create(Arena *arena) {
     MacroProcessor *mp = arena_alloc(arena, sizeof(MacroProcessor));
     mp->arena = arena;
     mp->macro_count = 0;
     mp->array_var_count = 0;
     mp->type_width_count = 0;
+    mp->struct_count = 0;
+    mp->struct_var_count = 0;
     return mp;
+}
+
+/* ---- Struct helpers ---- */
+
+static StructDef *find_struct(MacroProcessor *mp, const char *name) {
+    for (int i = 0; i < mp->struct_count; i++) {
+        if (strcmp(mp->structs[i].name, name) == 0)
+            return &mp->structs[i];
+    }
+    return NULL;
+}
+
+static StructField *find_field(StructDef *sd, const char *name) {
+    for (int i = 0; i < sd->field_count; i++) {
+        if (strcmp(sd->fields[i].name, name) == 0)
+            return &sd->fields[i];
+    }
+    return NULL;
+}
+
+static void register_struct_var(MacroProcessor *mp, const char *var, const char *struct_name) {
+    if (mp->struct_var_count >= MAX_ARRAY_VARS) return;
+    mp->struct_vars[mp->struct_var_count].var_name = var;
+    mp->struct_vars[mp->struct_var_count].struct_name = struct_name;
+    mp->struct_var_count++;
+}
+
+static StructDef *lookup_struct_var(MacroProcessor *mp, const char *var) {
+    for (int i = mp->struct_var_count - 1; i >= 0; i--) {
+        if (strcmp(mp->struct_vars[i].var_name, var) == 0)
+            return find_struct(mp, mp->struct_vars[i].struct_name);
+    }
+    return NULL;
+}
+
+/* Get byte size of a type name */
+static int type_byte_size(MacroProcessor *mp, const char *type_name) {
+    if (strcmp(type_name, "byte") == 0) return 1;
+    if (strcmp(type_name, "int") == 0)  return 4;
+    if (strcmp(type_name, "long") == 0) return 8;
+    int w = get_type_width(mp, type_name);
+    if (w > 0) return (w + 7) / 8; /* round up to bytes */
+    return 4; /* default */
+}
+
+/* Get the mem_read/write function suffix for a given byte size */
+static const char *rw_suffix(int bytes) {
+    switch (bytes) {
+        case 1: return "8";
+        case 2: return "16";
+        case 4: return "32";
+        case 8: return "64";
+        default: return "32";
+    }
 }
 
 /* Register a user-defined type's bit width */
@@ -152,6 +215,66 @@ static Token *extract_macros(MacroProcessor *mp, Token *tokens, int count,
             }
 
             mp->macro_count++;
+        } else if (tokens[i].kind == TOK_DEFX) {
+            /* Parse: defx NAME { type field; type field; ... } */
+            i++; /* skip 'defx' */
+
+            if (i >= count || tokens[i].kind != TOK_IDENT) {
+                error_report(tokens[i > 0 ? i-1 : 0].loc, ERR_PARSER,
+                             "expected struct name after 'defx'");
+                i++;
+                continue;
+            }
+
+            if (mp->struct_count >= MAX_STRUCT_DEFS) {
+                error_report(tokens[i].loc, ERR_PARSER, "too many struct definitions");
+                i++;
+                continue;
+            }
+
+            StructDef *sd = &mp->structs[mp->struct_count];
+            sd->name = tokens[i].text;
+            sd->field_count = 0;
+            sd->total_size = 0;
+            i++; /* skip name */
+
+            if (i < count && tokens[i].kind == TOK_LBRACE) {
+                i++; /* skip '{' */
+                int offset = 0;
+                while (i < count && tokens[i].kind != TOK_RBRACE) {
+                    /* Expect: TYPE FIELD_NAME , or ; */
+                    if (tokens[i].kind == TOK_IDENT && i + 1 < count &&
+                        tokens[i+1].kind == TOK_IDENT) {
+                        const char *ftype = tokens[i].text;
+                        const char *fname = tokens[i+1].text;
+                        int fsize = type_byte_size(mp, ftype);
+
+                        if (sd->field_count < MAX_STRUCT_FIELDS) {
+                            StructField *f = &sd->fields[sd->field_count];
+                            f->name = fname;
+                            f->type_name = ftype;
+                            f->bit_width = fsize * 8;
+                            f->byte_offset = offset;
+                            sd->field_count++;
+                            offset += fsize;
+                        }
+                        i += 2; /* skip type and name */
+                    } else {
+                        i++; /* skip comma, semicolon, etc. */
+                    }
+                    /* Skip separator (comma or semicolon) */
+                    if (i < count && (tokens[i].kind == TOK_COMMA ||
+                                      tokens[i].kind == TOK_SEMICOLON)) {
+                        i++;
+                    }
+                }
+                sd->total_size = offset;
+                if (i < count) i++; /* skip '}' */
+            }
+            /* Skip optional trailing semicolon */
+            if (i < count && tokens[i].kind == TOK_SEMICOLON) i++;
+
+            mp->struct_count++;
         } else {
             out[out_pos++] = tokens[i++];
         }
@@ -603,9 +726,183 @@ Token *macro_process(MacroProcessor *mp, Token *tokens, int count, int *out_coun
         }
     }
 
-    /* Pass 1: extract macro definitions */
+    /* Pass 1: extract macro and defx definitions */
     int stripped_count = 0;
     Token *stripped = extract_macros(mp, tokens, count, &stripped_count);
+
+    /* Pass 1b: rewrite struct variable declarations and dot notation */
+    if (mp->struct_count > 0) {
+        Token *st_out = arena_alloc(mp->arena, (size_t)(stripped_count * 6 + 1024) * sizeof(Token));
+        int sop = 0;
+
+        for (int i = 0; i < stripped_count; ) {
+            /* Detect: StructName varname = StructName_new() ; */
+            /* Or:     StructName varname ;                     */
+            StructDef *sd = NULL;
+            if (i + 1 < stripped_count && stripped[i].kind == TOK_IDENT &&
+                stripped[i+1].kind == TOK_IDENT &&
+                (sd = find_struct(mp, stripped[i].text)) != NULL) {
+
+                SourceLoc loc = stripped[i].loc;
+                const char *var_name = stripped[i+1].text;
+                size_t var_len = stripped[i+1].text_len;
+                register_struct_var(mp, var_name, sd->name);
+
+                /* Check if it's: StructName var ; (auto alloc) */
+                if (i + 2 < stripped_count && stripped[i+2].kind == TOK_SEMICOLON) {
+                    /* Emit: long var = alloc(SIZE); */
+                    st_out[sop++] = make_synth_token(loc, TOK_IDENT, "long", 4);
+                    st_out[sop++] = make_synth_token(loc, TOK_IDENT, var_name, var_len);
+                    st_out[sop++] = make_synth_token(loc, TOK_ASSIGN, "=", 1);
+                    st_out[sop++] = make_synth_token(loc, TOK_IDENT, "alloc", 5);
+                    st_out[sop++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                    st_out[sop++] = make_int_token(loc, (uint64_t)sd->total_size, mp->arena);
+                    st_out[sop++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+                    st_out[sop++] = make_synth_token(loc, TOK_SEMICOLON, ";", 1);
+                    i += 3;
+                    continue;
+                }
+
+                /* Otherwise: StructName var = expr ; → long var = expr ; */
+                st_out[sop++] = make_synth_token(loc, TOK_IDENT, "long", 4);
+                i++; /* skip struct type name, keep var name and rest */
+                continue;
+            }
+
+            /* Detect dot notation: IDENT . IDENT */
+            if (i + 2 < stripped_count &&
+                stripped[i].kind == TOK_IDENT &&
+                stripped[i+1].kind == TOK_DOT &&
+                stripped[i+2].kind == TOK_IDENT) {
+
+                StructDef *vsd = lookup_struct_var(mp, stripped[i].text);
+                if (vsd) {
+                    StructField *fld = find_field(vsd, stripped[i+2].text);
+                    if (fld) {
+                        SourceLoc loc = stripped[i].loc;
+                        Token var_tok = stripped[i];
+                        int foff = fld->byte_offset;
+                        int fbytes = fld->bit_width / 8;
+                        const char *suf = rw_suffix(fbytes);
+                        i += 3; /* skip var . field */
+
+                        /* Check if followed by '=' (write) */
+                        if (i < stripped_count && stripped[i].kind == TOK_ASSIGN) {
+                            i++; /* skip '=' */
+                            /* Collect value until ; ) , } */
+                            Token val_toks[256];
+                            int val_len = 0;
+                            int depth = 0;
+                            while (i < stripped_count && val_len < 256) {
+                                TokenKind k = stripped[i].kind;
+                                if (k == TOK_LPAREN) depth++;
+                                else if (k == TOK_RPAREN) {
+                                    if (depth == 0) break;
+                                    depth--;
+                                }
+                                else if (depth == 0 && (k == TOK_SEMICOLON ||
+                                         k == TOK_COMMA || k == TOK_RBRACE))
+                                    break;
+                                val_toks[val_len++] = stripped[i++];
+                            }
+                            /* Emit: mem_writeN(var, offset, val) */
+                            char wfn[32];
+                            int wn = snprintf(wfn, sizeof(wfn), "mem_write%s", suf);
+                            st_out[sop++] = make_synth_token(loc, TOK_IDENT,
+                                arena_strndup(mp->arena, wfn, (size_t)wn), (size_t)wn);
+                            st_out[sop++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                            st_out[sop++] = var_tok;
+                            st_out[sop++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                            st_out[sop++] = make_int_token(loc, (uint64_t)foff, mp->arena);
+                            st_out[sop++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                            for (int j = 0; j < val_len; j++)
+                                st_out[sop++] = val_toks[j];
+                            st_out[sop++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+                        } else {
+                            /* Emit: mem_readN(var, offset) */
+                            char rfn[32];
+                            int rn = snprintf(rfn, sizeof(rfn), "mem_read%s", suf);
+                            st_out[sop++] = make_synth_token(loc, TOK_IDENT,
+                                arena_strndup(mp->arena, rfn, (size_t)rn), (size_t)rn);
+                            st_out[sop++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                            st_out[sop++] = var_tok;
+                            st_out[sop++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                            st_out[sop++] = make_int_token(loc, (uint64_t)foff, mp->arena);
+                            st_out[sop++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+                        }
+                        continue;
+                    }
+                }
+            }
+
+            st_out[sop++] = stripped[i++];
+        }
+        stripped = st_out;
+        stripped_count = sop;
+
+        /* Run dot rewrite again for nested dots (p.x = p.y + 1) */
+        for (int pass = 0; pass < 8; pass++) {
+            Token *st2 = arena_alloc(mp->arena, (size_t)(stripped_count * 4 + 512) * sizeof(Token));
+            int sop2 = 0;
+            bool changed = false;
+
+            for (int i = 0; i < stripped_count; ) {
+                if (i + 2 < stripped_count &&
+                    stripped[i].kind == TOK_IDENT &&
+                    stripped[i+1].kind == TOK_DOT &&
+                    stripped[i+2].kind == TOK_IDENT) {
+
+                    StructDef *vsd = lookup_struct_var(mp, stripped[i].text);
+                    if (vsd) {
+                        StructField *fld = find_field(vsd, stripped[i+2].text);
+                        if (fld) {
+                            SourceLoc loc = stripped[i].loc;
+                            Token var_tok = stripped[i];
+                            int foff = fld->byte_offset;
+                            int fbytes = fld->bit_width / 8;
+                            const char *suf = rw_suffix(fbytes);
+                            i += 3;
+
+                            if (i < stripped_count && stripped[i].kind == TOK_ASSIGN) {
+                                i++;
+                                Token vt[256]; int vl = 0; int dep = 0;
+                                while (i < stripped_count && vl < 256) {
+                                    TokenKind k = stripped[i].kind;
+                                    if (k == TOK_LPAREN) dep++;
+                                    else if (k == TOK_RPAREN) { if (dep==0) break; dep--; }
+                                    else if (dep==0 && (k==TOK_SEMICOLON||k==TOK_COMMA||k==TOK_RBRACE)) break;
+                                    vt[vl++] = stripped[i++];
+                                }
+                                char fn[32]; int n = snprintf(fn, sizeof(fn), "mem_write%s", suf);
+                                st2[sop2++] = make_synth_token(loc, TOK_IDENT, arena_strndup(mp->arena,fn,(size_t)n),(size_t)n);
+                                st2[sop2++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                                st2[sop2++] = var_tok;
+                                st2[sop2++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                                st2[sop2++] = make_int_token(loc, (uint64_t)foff, mp->arena);
+                                st2[sop2++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                                for (int j=0;j<vl;j++) st2[sop2++]=vt[j];
+                                st2[sop2++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+                            } else {
+                                char fn[32]; int n = snprintf(fn, sizeof(fn), "mem_read%s", suf);
+                                st2[sop2++] = make_synth_token(loc, TOK_IDENT, arena_strndup(mp->arena,fn,(size_t)n),(size_t)n);
+                                st2[sop2++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                                st2[sop2++] = var_tok;
+                                st2[sop2++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                                st2[sop2++] = make_int_token(loc, (uint64_t)foff, mp->arena);
+                                st2[sop2++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+                            }
+                            changed = true;
+                            continue;
+                        }
+                    }
+                }
+                st2[sop2++] = stripped[i++];
+            }
+            stripped = st2;
+            stripped_count = sop2;
+            if (!changed) break;
+        }
+    }
 
     /* Pass 2: rewrite array declarations: int arr[5]; → long arr = int_new(5); */
     int decl_count = 0;

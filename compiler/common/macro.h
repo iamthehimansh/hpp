@@ -10,6 +10,8 @@
 #define MAX_MACRO_BODY 1024
 #define MAX_ARRAY_VARS 256
 #define MAX_TYPE_DEFS 128
+#define MAX_STRUCT_DEFS 64
+#define MAX_STRUCT_FIELDS 32
 
 typedef struct {
     const char *name;                       /* interned macro name */
@@ -31,6 +33,28 @@ typedef struct {
     int bit_width;          /* e.g., 16 */
 } TypeWidthEntry;
 
+/* A field in a defx struct */
+typedef struct {
+    const char *name;       /* field name */
+    const char *type_name;  /* field type: "int", "byte", "long", etc. */
+    int bit_width;          /* field size in bits */
+    int byte_offset;        /* byte offset from start of struct */
+} StructField;
+
+/* A defx struct definition */
+typedef struct {
+    const char *name;                       /* struct name */
+    StructField fields[MAX_STRUCT_FIELDS];  /* fields */
+    int field_count;
+    int total_size;                         /* total size in bytes */
+} StructDef;
+
+/* Tracks which variables are instances of which struct */
+typedef struct {
+    const char *var_name;
+    const char *struct_name;
+} StructVarEntry;
+
 typedef struct {
     Arena *arena;
     MacroDef macros[MAX_MACROS];
@@ -39,6 +63,10 @@ typedef struct {
     int array_var_count;
     TypeWidthEntry type_widths[MAX_TYPE_DEFS];
     int type_width_count;
+    StructDef structs[MAX_STRUCT_DEFS];
+    int struct_count;
+    StructVarEntry struct_vars[MAX_ARRAY_VARS];
+    int struct_var_count;
 } MacroProcessor;
 
 /* Create the macro processor */

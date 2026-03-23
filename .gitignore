@@ -4,3 +4,4 @@ build/
 !compiler/stdlib/*.asm
 !compiler/stdlib/std/*.asm
 /tmp/
+docs_/

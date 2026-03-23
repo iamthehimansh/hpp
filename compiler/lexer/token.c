@@ -27,6 +27,7 @@ const char *token_kind_str(TokenKind kind)
     case TOK_IMPORT:      return "IMPORT";
     case TOK_LINK:        return "LINK";
     case TOK_MACRO:       return "MACRO";
+    case TOK_DEFX:        return "DEFX";
     case TOK_STRUCT:      return "STRUCT";
     case TOK_ENUM:        return "ENUM";
     case TOK_MATCH:       return "MATCH";
@@ -62,6 +63,7 @@ const char *token_kind_str(TokenKind kind)
     case TOK_SEMICOLON:   return "SEMICOLON";
     case TOK_COMMA:       return "COMMA";
     case TOK_COLON:       return "COLON";
+    case TOK_DOT:         return "DOT";
     case TOK_ARROW:       return "ARROW";
     case TOK_ASM_BODY:    return "ASM_BODY";
     case TOK_EOF:         return "EOF";

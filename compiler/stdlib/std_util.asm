@@ -313,6 +313,66 @@ read_stdin:
     ret
 
 ; ============================================================
+; STRUCT FIELD ACCESS (raw byte-offset reads/writes)
+; ============================================================
+
+; mem_read8(ptr: long, offset: int) -> int
+global mem_read8
+mem_read8:
+    movsxd rsi, esi
+    movzx eax, byte [rdi + rsi]
+    ret
+
+; mem_read16(ptr: long, offset: int) -> int
+global mem_read16
+mem_read16:
+    movsxd rsi, esi
+    movzx eax, word [rdi + rsi]
+    ret
+
+; mem_read32(ptr: long, offset: int) -> int
+global mem_read32
+mem_read32:
+    movsxd rsi, esi
+    mov eax, [rdi + rsi]
+    ret
+
+; mem_read64(ptr: long, offset: int) -> long
+global mem_read64
+mem_read64:
+    movsxd rsi, esi
+    mov rax, [rdi + rsi]
+    ret
+
+; mem_write8(ptr: long, offset: int, val: int)
+global mem_write8
+mem_write8:
+    movsxd rsi, esi
+    mov [rdi + rsi], dl
+    ret
+
+; mem_write16(ptr: long, offset: int, val: int)
+global mem_write16
+mem_write16:
+    movsxd rsi, esi
+    mov [rdi + rsi], dx
+    ret
+
+; mem_write32(ptr: long, offset: int, val: int)
+global mem_write32
+mem_write32:
+    movsxd rsi, esi
+    mov [rdi + rsi], edx
+    ret
+
+; mem_write64(ptr: long, offset: int, val: long)
+global mem_write64
+mem_write64:
+    movsxd rsi, esi
+    mov [rdi + rsi], rdx
+    ret
+
+; ============================================================
 ; MEMORY OPERATIONS
 ; ============================================================
 

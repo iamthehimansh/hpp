@@ -39,6 +39,7 @@ static const Keyword keywords[] = {
     { "import",   TOK_IMPORT   },
     { "link",     TOK_LINK     },
     { "macro",    TOK_MACRO    },
+    { "defx",     TOK_DEFX     },
     { "struct",   TOK_STRUCT   },
     { "enum",     TOK_ENUM     },
     { "match",    TOK_MATCH    },
@@ -447,6 +448,7 @@ static Token lexer_next_raw(Lexer *lex)
         case ';': return make_token(lex, TOK_SEMICOLON, 1);
         case ',': return make_token(lex, TOK_COMMA, 1);
         case ':': return make_token(lex, TOK_COLON, 1);
+        case '.': return make_token(lex, TOK_DOT, 1);
 
         case '\'': {
             /* Char literal: 'a' → int value 97 */

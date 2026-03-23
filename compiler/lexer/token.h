@@ -13,7 +13,7 @@ typedef enum {
     TOK_FN, TOK_RETURN, TOK_DEF, TOK_IF, TOK_ELSE, TOK_FOR, TOK_WHILE,
     TOK_BREAK, TOK_CONTINUE, TOK_CONST, TOK_LET, TOK_ASM, TOK_OPP,
     TOK_TRUE, TOK_FALSE, TOK_BIT,
-    TOK_IMPORT, TOK_LINK, TOK_MACRO,
+    TOK_IMPORT, TOK_LINK, TOK_MACRO, TOK_DEFX,
     /* Reserved future */
     TOK_STRUCT, TOK_ENUM, TOK_MATCH, TOK_AS,
     /* Identifier */
@@ -27,7 +27,7 @@ typedef enum {
     /* Punctuation */
     TOK_LPAREN, TOK_RPAREN, TOK_LBRACE, TOK_RBRACE,
     TOK_LBRACKET, TOK_RBRACKET,
-    TOK_SEMICOLON, TOK_COMMA, TOK_COLON, TOK_ARROW,
+    TOK_SEMICOLON, TOK_COMMA, TOK_COLON, TOK_DOT, TOK_ARROW,
     /* Special */
     TOK_ASM_BODY,  /* raw assembly text between { } in asm blocks */
     TOK_EOF, TOK_ERROR,
