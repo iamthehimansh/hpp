@@ -983,11 +983,15 @@ static void gen_program(CodeGen *cg, AstNode *program) {
         emit(cg, "\nsection .data\n");
         for (int i = 0; i < g_string_count; i++) {
             emit(cg, "__str%d: db ", g_strings[i].id);
-            for (size_t j = 0; j < g_strings[i].len; j++) {
-                if (j > 0) emit(cg, ", ");
-                emit(cg, "%d", (unsigned char)g_strings[i].text[j]);
+            if (g_strings[i].len == 0) {
+                emit(cg, "0\n");  /* empty string = just null */
+            } else {
+                for (size_t j = 0; j < g_strings[i].len; j++) {
+                    if (j > 0) emit(cg, ", ");
+                    emit(cg, "%d", (unsigned char)g_strings[i].text[j]);
+                }
+                emit(cg, ", 0\n");
             }
-            emit(cg, ", 0\n");  /* null terminator */
         }
     }
 }
