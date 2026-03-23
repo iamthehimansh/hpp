@@ -20,12 +20,34 @@ sudo apt update && sudo apt install gcc nasm make
 ## Building the Compiler
 
 ```bash
-git clone <repo>
-cd H++
+git clone https://github.com/iamthehimansh/hpp.git
+cd hpp
 make
 ```
 
 This produces `build/hpp` — the H++ compiler.
+
+## Installing Globally
+
+```bash
+sudo make install
+```
+
+Now `hpp` is available from anywhere:
+
+```bash
+hpp --help
+hpp hello.hpp -o hello
+man hpp
+```
+
+Installs to `/usr/local` by default. To change: `sudo make install PREFIX=/opt/hpp`
+
+To uninstall:
+
+```bash
+sudo make uninstall
+```
 
 ## Your First Program
 
