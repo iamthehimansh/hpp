@@ -2,32 +2,33 @@
 cd /mnt/h/H++
 HPP=./build/hpp
 
-# Compile all H++ modules
-for m in \
-    "compiler_hpp/lexer/token.hpp token_hpp" \
-    "compiler_hpp/common/file_io.hpp file_io_hpp" \
-    "compiler_hpp/common/strtab.hpp strtab_hpp" \
-    "compiler_hpp/sema/types.hpp types_hpp" \
-    "compiler_hpp/sema/opp_table.hpp opp_table_hpp" \
-    "compiler_hpp/sema/symtab.hpp symtab_hpp" \
-    "compiler_hpp/common/arena.hpp arena_hpp" \
-    "compiler_hpp/common/args.hpp args_hpp" \
-    "compiler_hpp/backend/backend.hpp backend_hpp" \
-    "compiler_hpp/ast/ast.hpp ast_hpp" \
-    "compiler_hpp/lexer/lexer.hpp lexer_hpp" \
-    "compiler_hpp/common/module.hpp module_hpp"; do
-    src=$(echo $m | cut -d" " -f1); name=$(echo $m | cut -d" " -f2)
+# H++ modules (14 modules)
+MODS="compiler_hpp/lexer/token.hpp:token_hpp
+compiler_hpp/common/file_io.hpp:file_io_hpp
+compiler_hpp/common/strtab.hpp:strtab_hpp
+compiler_hpp/sema/types.hpp:types_hpp
+compiler_hpp/sema/opp_table.hpp:opp_table_hpp
+compiler_hpp/sema/symtab.hpp:symtab_hpp
+compiler_hpp/common/arena.hpp:arena_hpp
+compiler_hpp/common/args.hpp:args_hpp
+compiler_hpp/backend/backend.hpp:backend_hpp
+compiler_hpp/ast/ast.hpp:ast_hpp
+compiler_hpp/lexer/lexer.hpp:lexer_hpp
+compiler_hpp/common/module.hpp:module_hpp"
+
+for m in $MODS; do
+    src=$(echo $m | cut -d: -f1)
+    name=$(echo $m | cut -d: -f2)
     $HPP --lib -S $src -o /tmp/${name}.asm 2>&1
     nasm -f elf64 -o /tmp/${name}.o /tmp/${name}.asm
 done
 
-# C modules
-for f in compiler/codegen/codegen.c \
-         compiler/common/macro.c compiler/main.c \
+# C modules (macro, parser, sema, codegen, main stay in C)
+for f in compiler/codegen/codegen.c compiler/common/macro.c compiler/main.c \
          compiler/parser/parser.c compiler/sema/sema.c; do
     gcc -Wall -Wextra -std=c11 -g -Icompiler -c -o "/tmp/hpp_sh_$(basename $f .c).o" "$f"
 done
-rm -f /tmp/hpp_sh_error.o  # remove stale old error.c object
+rm -f /tmp/hpp_sh_error.o
 gcc -Wall -Wextra -std=c11 -g -Icompiler -c -o /tmp/error_bridge.o compiler_hpp/common/error_bridge.c
 gcc -Wall -Wextra -std=c11 -g -Icompiler -c -o /tmp/types_globals.o compiler_hpp/sema/types_globals.c
 nasm -f elf64 -o /tmp/std_ll.o compiler/stdlib/std_ll.asm
