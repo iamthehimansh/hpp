@@ -37,7 +37,7 @@ for (int i = 0; i < 10; i = i + 1) {
 }
 ```
 
-Note: H++ has no `++` or `+=` operators. Use `i = i + 1`.
+H++ supports `++` and `+=` operators, so the above can also be written as `i++`.
 
 ## Break and Continue
 
@@ -50,6 +50,33 @@ for (int i = 0; i < 100; i = i + 1) {
 }
 // Output: 1 3 5 7 9 11 13 15 17 19
 ```
+
+## Switch / Case / Default
+
+```c
+int code = 2;
+switch (code) {
+    case 0: {
+        println("zero");
+        break;
+    }
+    case 1: {
+        println("one");
+        break;
+    }
+    case 2:
+    case 3: {
+        println("two or three");
+        break;
+    }
+    default: {
+        println("other");
+        break;
+    }
+}
+```
+
+Each `case` tests against a compile-time integer constant. Execution falls through to the next case unless a `break` is encountered. The `default` branch matches when no `case` matches.
 
 ## Return
 

@@ -11,6 +11,7 @@ All functions are available via `import std/<module>;`. No import needed per fun
 - [std/arr](#stdarr) — Array operations
 - [std/time](#stdtime) — Time and sleep
 - [std/rand](#stdrand) — Random numbers
+- [std/sb](#stdsb) — String builder
 - [std/proc](#stdproc) — Process control
 - [std/sys](#stdsys) — Raw Linux syscalls
 - [std/net](#stdnet) — Network syscalls
@@ -192,6 +193,42 @@ All strings are null-terminated.
 
 ---
 
+## std/sb
+
+`import std/sb;`
+
+Dynamic string builder for constructing strings incrementally.
+
+| Function | Description |
+|----------|-------------|
+| `sb_new() -> long` | Create a new string builder (returns handle) |
+| `sb_append(sb: long, s: long)` | Append a null-terminated string |
+| `sb_append_char(sb: long, c: int)` | Append a single character |
+| `sb_append_int(sb: long, n: int)` | Append an integer as decimal text |
+| `sb_append_long(sb: long, n: long)` | Append a long as decimal text |
+| `sb_to_str(sb: long) -> long` | Get the built string as a null-terminated pointer |
+| `sb_clear(sb: long)` | Reset the builder (keeps allocated memory) |
+| `sb_free(sb: long)` | Free all memory used by the builder |
+
+### Example
+
+```c
+import std/sb;
+import std/io;
+
+fn main() -> int {
+    long sb = sb_new();
+    sb_append(sb, "Hello, ");
+    sb_append(sb, "world");
+    sb_append_char(sb, '!');
+    println(sb_to_str(sb));    // "Hello, world!"
+    sb_free(sb);
+    return 0;
+}
+```
+
+---
+
 ## std/proc
 
 `import std/proc;`
@@ -200,6 +237,7 @@ All strings are null-terminated.
 |----------|-------------|
 | `exit(code: int)` | Exit process (no return) |
 | `abort()` | Kill with SIGABRT (no return) |
+| `arg_str(argv: long, index: int) -> long` | Get pointer to argv string at index |
 
 ---
 

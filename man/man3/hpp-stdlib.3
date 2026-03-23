@@ -170,6 +170,43 @@ Exit process immediately.
 .TP
 \fBabort\fR()
 Kill process with SIGABRT.
+.TP
+\fBarg_str\fR(\fIargv\fR: long, \fIindex\fR: int) -> long
+Get pointer to the index-th command line argument string.
+.SH std/sb \- STRING BUILDER
+.TP
+\fBsb_new\fR() -> long
+Create a new string builder (auto-growing buffer).
+.TP
+\fBsb_free\fR(\fIsb\fR: long)
+Free the string builder and its buffer.
+.TP
+\fBsb_len\fR(\fIsb\fR: long) -> int
+Current length of the built string.
+.TP
+\fBsb_data\fR(\fIsb\fR: long) -> long
+Pointer to the raw buffer (not null-terminated).
+.TP
+\fBsb_append\fR(\fIsb\fR: long, \fIs\fR: long)
+Append null-terminated string.
+.TP
+\fBsb_append_str\fR(\fIsb\fR: long, \fIs\fR: long, \fIlen\fR: int)
+Append \fIlen\fR bytes from \fIs\fR.
+.TP
+\fBsb_append_char\fR(\fIsb\fR: long, \fIc\fR: int)
+Append single character.
+.TP
+\fBsb_append_int\fR(\fIsb\fR: long, \fIn\fR: int)
+Append integer as decimal string.
+.TP
+\fBsb_append_long\fR(\fIsb\fR: long, \fIn\fR: long)
+Append 64-bit integer as decimal string.
+.TP
+\fBsb_to_str\fR(\fIsb\fR: long) -> long
+Return a null-terminated copy (caller must free).
+.TP
+\fBsb_clear\fR(\fIsb\fR: long)
+Reset length to 0 (keeps buffer).
 .SH std/sys \- SYSCALLS
 73 raw Linux x86-64 syscall wrappers, all named \fBsys_<name>\fR.
 .PP

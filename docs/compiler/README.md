@@ -70,11 +70,15 @@ Runs on the token array before parsing. Four passes:
 
 1. **Type scanning** -- finds `def TYPE bit[N]` to learn type widths
 2. **String var detection** -- tracks variables assigned string literals (for byte array indexing)
-3. **Macro/defx extraction** -- removes `macro` and `defx` definitions from token stream, stores them
-4. **Array declaration rewrite** -- `int arr[5]` becomes `long arr = int_new(5)`
-5. **Bracket rewrite** -- `arr[i]` becomes `int_get(arr, i)` (type-aware)
-6. **Struct dot rewrite** -- `p.x` becomes `mem_read32(p, 0)` (offset-aware)
-7. **Macro expansion** -- substitute macro calls with body tokens (up to 8 passes for nesting)
+3. **Macro/defx/enum extraction** -- removes `macro`, `defx`, and `enum` definitions from token stream, stores them. Enum values become compile-time integer constants.
+4. **Top-level const extraction** -- removes `const NAME = VALUE;` declarations outside functions, registers them as compile-time constants
+5. **sizeof/offsetof rewrite** -- `sizeof(type)` replaced with byte size literal; `offsetof(Struct, field)` replaced with byte offset literal
+6. **Compound assignment rewrite** -- `x += e` rewritten to `x = x + (e)` (and similarly for `-=`, `*=`, `/=`, `%=`, `&=`, `|=`, `^=`, `<<=`, `>>=`)
+7. **Increment/decrement rewrite** -- `i++`, `++i`, `i--`, `--i` rewritten to equivalent assignments
+8. **Array declaration rewrite** -- `int arr[5]` becomes `long arr = int_new(5)`
+9. **Bracket rewrite** -- `arr[i]` becomes `int_get(arr, i)` (type-aware)
+10. **Struct dot rewrite** -- `p.x` becomes `mem_read32(p, 0)` (offset-aware)
+11. **Macro expansion** -- substitute macro calls with body tokens (up to 8 passes for nesting)
 
 ## Stage 3: Parser
 

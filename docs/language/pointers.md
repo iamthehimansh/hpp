@@ -74,3 +74,19 @@ mem_write8(buf, 8, 65);      // write single byte at offset 8
 
 int val = mem_read32(buf, 0); // read 32-bit int
 ```
+
+## Function Pointers
+
+The `&` operator works on function names to get a callable pointer:
+
+```c
+fn double(x: int) -> int { return x * 2; }
+
+fn main() -> int {
+    long fp = &double;
+    int result = fp(21);      // result = 42
+    return 0;
+}
+```
+
+Function pointers are `long` values and can be stored in variables, arrays, or passed as arguments. See [Functions](functions.md#function-pointers) for more details and the `apply` pattern.

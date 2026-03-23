@@ -76,3 +76,28 @@ p.y = 20;
 move_point(p, 5, 3);
 // p.x = 15, p.y = 23
 ```
+
+## offsetof
+
+`offsetof(Struct, field)` returns the compile-time byte offset of a field within a struct:
+
+```c
+defx Rect { int x, int y, int w, int h }
+
+int off_x = offsetof(Rect, x);   // 0
+int off_y = offsetof(Rect, y);   // 4
+int off_w = offsetof(Rect, w);   // 8
+int off_h = offsetof(Rect, h);   // 12
+```
+
+This is useful for manual memory access when working with struct pointers in generic code:
+
+```c
+fn read_field(ptr: long, offset: int) -> int {
+    return mem_read32(ptr, offset);
+}
+
+Rect r;
+r.x = 42;
+int val = read_field(r, offsetof(Rect, x));   // val = 42
+```

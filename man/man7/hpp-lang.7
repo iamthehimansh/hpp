@@ -38,11 +38,25 @@ fn add(a: int, b: int) -> int {
 fn main() -> int {
     return 0;
 }
+
+// With command line arguments:
+fn main(argc: int, argv: long) -> int {
+    long arg1 = arg_str(argv, 1);
+    return 0;
+}
 .fi
 .RE
 .PP
-Parameters are immutable. Entry point is \fBfn main() -> int\fR.
+Parameters are immutable. Entry point is \fBfn main() -> int\fR or
+\fBfn main(argc: int, argv: long) -> int\fR.
 Calling convention: System V AMD64 ABI.
+.SS Function Pointers
+.RS
+.nf
+long fp = &my_func;
+long result = fp(10, 20);   // indirect call
+.fi
+.RE
 .SH OPERATORS
 .PP
 Precedence (highest to lowest):
@@ -61,8 +75,52 @@ _
 9	|	Bitwise OR
 10	&&	Logical AND (short-circuit)
 11	||	Logical OR (short-circuit)
-12	=	Assignment
+12	= += -= *= /= %= etc.	Assignment and compound assignment
 .TE
+.SS Compound Assignment
+.nf
+x += 5;  x -= 1;  x *= 2;  x /= 3;  x %= 4;
+x &= 0xFF;  x |= 1;  x ^= mask;  x <<= 2;  x >>= 1;
+.fi
+.SS Increment / Decrement
+.nf
+i++;  ++i;  i--;  --i;    // all rewrite to i = i +/- 1
+.fi
+.SS sizeof / offsetof / null
+.nf
+sizeof(int)                // 4 (compile-time)
+sizeof(long)               // 8
+offsetof(Point, y)         // byte offset of field y
+long p = null;             // 0 as pointer
+.fi
+.SS Narrowing Cast
+.nf
+int x = int(long_value);   // truncate 64 -> 32 bits
+byte b = byte(int_value);  // truncate 32 -> 8 bits
+.fi
+.SH ENUM
+.RS
+.nf
+enum TokenKind {
+    TOK_PLUS,            // 0
+    TOK_MINUS,           // 1
+    TOK_STAR = 10,       // 10 (explicit)
+    TOK_SLASH            // 11 (auto-increment)
+}
+.fi
+.RE
+.PP
+Preprocessor replaces member names with integer literals.
+.SH TOP-LEVEL CONST
+.RS
+.nf
+const MAX_TOKENS = 1024;
+const VERSION = 1;
+.fi
+.RE
+.PP
+Replaced with integer literals at compile time. Works outside functions.
+Inside functions, \fBconst\fR still creates a local immutable variable.
 .SH CONTROL FLOW
 .RS
 .nf
@@ -76,6 +134,16 @@ return expr;
 .RE
 .PP
 Conditions must be type \fBbit\fR. Use comparison operators on wider types.
+.SS Switch
+.RS
+.nf
+switch (val) {
+    case 0: println("zero"); break;
+    case 1: println("one"); break;
+    default: println("other"); break;
+}
+.fi
+.RE
 .SH ARRAYS
 .PP
 Requires \fBimport std/arr;\fR
@@ -118,6 +186,8 @@ free(p, 8);
 .RE
 .PP
 Contiguous C-like memory layout. \fB&x + 4 == &y\fR for 32-bit fields.
+.PP
+Use \fBoffsetof(Point, y)\fR to get field byte offsets at compile time.
 .SH POINTERS
 .RS
 .nf
