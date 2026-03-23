@@ -217,9 +217,10 @@ static Token *expand_macros(MacroProcessor *mp, Token *tokens, int count,
     return out;
 }
 
-/* ---- Pass: Rewrite bracket syntax ---- */
-/* arr[i]       → int_get(arr, i)          */
-/* arr[i] = val → int_set(arr, i, val)     */
+/* ---- Pass: Rewrite array declarations ---- */
+/* int arr[5];           → long arr = int_new(5);                          */
+/* int arr[] = [1,2,3];  → long arr = int_new(3); arr[0]=1; arr[1]=2; ... */
+/* int arr[3] = [1,2,3]; → long arr = int_new(3); arr[0]=1; arr[1]=2; ... */
 
 static Token make_synth_token(SourceLoc loc, TokenKind kind, const char *text, size_t len) {
     Token t;
@@ -230,6 +231,156 @@ static Token make_synth_token(SourceLoc loc, TokenKind kind, const char *text, s
     t.text_len = len;
     return t;
 }
+
+static Token make_int_token(SourceLoc loc, uint64_t val, Arena *arena) {
+    Token t;
+    memset(&t, 0, sizeof(t));
+    t.kind = TOK_INT_LIT;
+    t.loc = loc;
+    t.int_value = val;
+    /* Create text representation */
+    char buf[32];
+    int n = snprintf(buf, sizeof(buf), "%d", (int)val);
+    t.text = arena_strndup(arena, buf, (size_t)n);
+    t.text_len = (size_t)n;
+    return t;
+}
+
+/* Check if position has pattern: TYPE_IDENT VAR_IDENT [ */
+static bool is_array_decl(Token *tokens, int count, int pos) {
+    if (pos + 2 >= count) return false;
+    if (tokens[pos].kind != TOK_IDENT) return false;
+    if (tokens[pos + 1].kind != TOK_IDENT) return false;
+    if (tokens[pos + 2].kind != TOK_LBRACKET) return false;
+    /* Make sure first ident isn't a keyword-like context */
+    /* Check we're not inside an expression (prev token isn't operator/assign) */
+    if (pos > 0) {
+        TokenKind prev = tokens[pos - 1].kind;
+        if (prev == TOK_ASSIGN || prev == TOK_PLUS || prev == TOK_MINUS ||
+            prev == TOK_STAR || prev == TOK_SLASH || prev == TOK_COMMA ||
+            prev == TOK_LPAREN || prev == TOK_EQUAL || prev == TOK_NOT_EQUAL ||
+            prev == TOK_LESS || prev == TOK_GREATER || prev == TOK_RETURN)
+            return false;
+    }
+    return true;
+}
+
+/* Build a function name like "int_new" from type name "int" and suffix "_new" */
+static const char *build_func_name(Arena *arena, const char *type, const char *suffix) {
+    size_t tlen = strlen(type);
+    size_t slen = strlen(suffix);
+    char *buf = arena_alloc(arena, tlen + slen + 1);
+    memcpy(buf, type, tlen);
+    memcpy(buf + tlen, suffix, slen);
+    buf[tlen + slen] = '\0';
+    return buf;
+}
+
+static Token *rewrite_array_decls(MacroProcessor *mp, Token *tokens, int count,
+                                   int *out_count) {
+    int cap = count * 6 + 1024;
+    Token *out = arena_alloc(mp->arena, (size_t)cap * sizeof(Token));
+    int op = 0;  /* output position */
+
+    for (int i = 0; i < count; ) {
+        if (!is_array_decl(tokens, count, i)) {
+            out[op++] = tokens[i++];
+            continue;
+        }
+
+        SourceLoc loc = tokens[i].loc;
+        const char *type_name = tokens[i].text;
+        const char *var_name = tokens[i + 1].text;
+        size_t var_len = tokens[i + 1].text_len;
+        i += 2; /* skip TYPE and NAME */
+
+        const char *new_fn = build_func_name(mp->arena, type_name, "_new");
+        size_t new_fn_len = strlen(new_fn);
+
+        /* Now at '[' */
+        i++; /* skip '[' */
+
+        /* Collect size expression (may be empty for []) */
+        Token size_tokens[64];
+        int size_len = 0;
+        while (i < count && tokens[i].kind != TOK_RBRACKET && size_len < 64) {
+            size_tokens[size_len++] = tokens[i++];
+        }
+        if (i < count) i++; /* skip ']' */
+
+        /* Check for initializer: = [ val1, val2, ... ] */
+        Token init_vals[256];
+        int init_count = 0;
+        bool has_init = false;
+
+        if (i < count && tokens[i].kind == TOK_ASSIGN) {
+            i++; /* skip '=' */
+            if (i < count && tokens[i].kind == TOK_LBRACKET) {
+                i++; /* skip '[' */
+                has_init = true;
+                int depth = 0;
+                /* Collect comma-separated values */
+                while (i < count && !(tokens[i].kind == TOK_RBRACKET && depth == 0)) {
+                    if (tokens[i].kind == TOK_LBRACKET) depth++;
+                    if (tokens[i].kind == TOK_RBRACKET) depth--;
+                    if (tokens[i].kind == TOK_COMMA && depth == 0) {
+                        i++; /* skip comma between values */
+                        continue;
+                    }
+                    if (init_count < 256) {
+                        init_vals[init_count++] = tokens[i];
+                    }
+                    i++;
+                }
+                if (i < count) i++; /* skip ']' */
+            }
+        }
+        if (i < count && tokens[i].kind == TOK_SEMICOLON) i++; /* skip ';' */
+
+        /* Determine size */
+        int known_size = init_count; /* from initializer count */
+        bool use_init_size = (size_len == 0 && has_init);
+
+        /* Emit: long VAR = TYPE_new(SIZE); */
+        out[op++] = make_synth_token(loc, TOK_IDENT, "long", 4);
+        out[op++] = make_synth_token(loc, TOK_IDENT, var_name, var_len);
+        out[op++] = make_synth_token(loc, TOK_ASSIGN, "=", 1);
+        out[op++] = make_synth_token(loc, TOK_IDENT, new_fn, new_fn_len);
+        out[op++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+        if (use_init_size) {
+            out[op++] = make_int_token(loc, (uint64_t)known_size, mp->arena);
+        } else {
+            for (int j = 0; j < size_len; j++)
+                out[op++] = size_tokens[j];
+        }
+        out[op++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+        out[op++] = make_synth_token(loc, TOK_SEMICOLON, ";", 1);
+
+        /* Emit initializer: TYPE_set(VAR, 0, val0); TYPE_set(VAR, 1, val1); ... */
+        if (has_init) {
+            const char *set_fn = build_func_name(mp->arena, type_name, "_set");
+            size_t set_fn_len = strlen(set_fn);
+            for (int j = 0; j < init_count && op < cap - 16; j++) {
+                out[op++] = make_synth_token(loc, TOK_IDENT, set_fn, set_fn_len);
+                out[op++] = make_synth_token(loc, TOK_LPAREN, "(", 1);
+                out[op++] = make_synth_token(loc, TOK_IDENT, var_name, var_len);
+                out[op++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                out[op++] = make_int_token(loc, (uint64_t)j, mp->arena);
+                out[op++] = make_synth_token(loc, TOK_COMMA, ",", 1);
+                out[op++] = init_vals[j];
+                out[op++] = make_synth_token(loc, TOK_RPAREN, ")", 1);
+                out[op++] = make_synth_token(loc, TOK_SEMICOLON, ";", 1);
+            }
+        }
+    }
+
+    *out_count = op;
+    return out;
+}
+
+/* ---- Pass: Rewrite bracket syntax ---- */
+/* arr[i]       → int_get(arr, i)          */
+/* arr[i] = val → int_set(arr, i, val)     */
 
 /* Collect tokens between [ and matching ], handling nesting.
    Returns position after the ]. */
@@ -353,10 +504,14 @@ Token *macro_process(MacroProcessor *mp, Token *tokens, int count, int *out_coun
     int stripped_count = 0;
     Token *stripped = extract_macros(mp, tokens, count, &stripped_count);
 
-    /* Pass 2: rewrite bracket syntax: arr[i] → int_get(arr, i)
+    /* Pass 2: rewrite array declarations: int arr[5]; → long arr = int_new(5); */
+    int decl_count = 0;
+    Token *after_decls = rewrite_array_decls(mp, stripped, stripped_count, &decl_count);
+
+    /* Pass 3: rewrite bracket syntax: arr[i] → int_get(arr, i)
        Run multiple passes for nested brackets like a[i] = a[j] * 2 */
-    Token *rewritten = stripped;
-    int rewritten_count = stripped_count;
+    Token *rewritten = after_decls;
+    int rewritten_count = decl_count;
     for (int pass = 0; pass < 8; pass++) {
         int new_count = 0;
         Token *rw = rewrite_brackets(mp, rewritten, rewritten_count, &new_count);
